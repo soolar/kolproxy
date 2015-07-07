@@ -1,16 +1,20 @@
+local liana_places = {
+	"An Overgrown Shrine (Northwest)",
+	"An Overgrown Shrine (Southwest)",
+	"An Overgrown Shrine (Northeast)",
+	"An Overgrown Shrine (Southeast)",
+	"A Massive Ziggurat",
+}
+
 add_warning {
 	message = "You can equip an antique machete to cut away dense lianas without taking a turn (found in The Hidden Park).",
 	type = "warning",
 	when = "ascension",
-	zone = { "An Overgrown Shrine (Northwest)", "An Overgrown Shrine (Southwest)", "An Overgrown Shrine (Northeast)", "An Overgrown Shrine (Southeast)", "A Massive Ziggurat" },
+	zone = liana_places,
 	check = function(zoneid)
 		if not can_wear_weapons() then return end
 		if have_equipped_item("antique machete") or have_equipped_item("machetito") or have_equipped_item("muculent machete") or have_equipped_item("papier-m&acirc;ch&eacute;te") then return end
-		for x, _ in pairs(remaining_hidden_city_liana_zones()) do
-			if get_zoneid(x) == zoneid then
-				return true
-			end
-		end
+		return remaining_hidden_city_liana_zones()[maybe_get_zonename(zoneid)]
 	end
 }
 
@@ -68,21 +72,16 @@ add_warning {
 	end
 }
 
-local places = {
-	{ zone = "A Massive Ziggurat", choice = "Legend of the Temple in the Hidden City", option = "Leave" },
-	{ zone = "An Overgrown Shrine (Southwest)", unlockzone = "The Hidden Hospital", choice = "Water You Dune", option = "Place your head in the impression", fallback = "Back away", sphere = "dripping" },
-	{ zone = "An Overgrown Shrine (Northwest)", unlockzone = "The Hidden Apartment Building", choice = "Earthbound and Down", option = "Place your head in the impression", fallback = "Step away from the altar", sphere = "moss-covered" },
-	{ zone = "An Overgrown Shrine (Southeast)", unlockzone = "The Hidden Bowling Alley", choice = "Fire When Ready", option = "Place your head in the impression", fallback = "Back off", sphere = "scorched" },
-	{ zone = "An Overgrown Shrine (Northeast)", unlockzone = "The Hidden Office Building", choice = "Air Apparent", option = "Place your head in the impression", fallback = "Leave the altar", sphere = "crackling" },
-}
-
 function remaining_hidden_city_liana_zones()
-	local citypt = get_page("/place.php", { whichplace = "hiddencity" })
 	local remaining = {}
-	for _, x in ipairs(places) do
-		if not x.unlockzone or not citypt:contains(x.unlockzone) then
-			remaining[x.zone] = true
+	for _, zone in ipairs(liana_places) do
+		if get_ascension_counter("zone.hiddencity." .. get_zoneid(zone) .. ".liana.kills") < 3 then
+			remaining[zone] = true
 		end
 	end
 	return remaining
 end
+
+add_processor("won fight: dense liana", function()
+	increase_ascension_counter("zone.hiddencity." .. tostring(get_adventure_zoneid()) .. ".liana.kills")
+end)

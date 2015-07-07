@@ -1,7 +1,12 @@
-local function build_spoiler(pre, value, to)
+local function build_spoiler(input, to)
 	local disable = false
 	local is_good = false
 	local spoiler = ""
+	
+	if type(to) == "function" then
+		ok, to = pcall(to)
+	end
+	
 	if type(to) == "string" then
 		spoiler = to
 	elseif type(to) == "table" then
@@ -78,24 +83,32 @@ local function build_spoiler(pre, value, to)
 		spoiler = "<br>" .. spoiler
 	end
 	if disable then
-		return pre .. value .. [[" disabled="disabled" style="color: gray"><span style="color: gray">]] .. spoiler .. [[</span>]]
+		return input:gsub(">", [[ disabled="disabled" style="color: gray">]]) .. [[<span style="color: gray">]] .. spoiler .. [[</span>]]
 	else
-		return pre .. value .. [[">]] .. spoiler
+		return input .. spoiler
 	end
 end
 
 local function build_spoilers_by_name(tbl)
-	return text:gsub([[(<input class=button type=submit value=")([^"]-)">]], function(pre, value)
-		local spoiler = tbl[value]
-		return build_spoiler(pre, value, spoiler)
+	return text:gsub([[<input[^>]+>]], function(input)
+		local title = input:match([[value="([^>]+)"]])
+		local number = tonumber(input:match([[value=([0-9]+)]]))
+		local spoiler
+		if title and input:contains("submit") then
+			spoiler = tbl[title]
+		end
+		return build_spoiler(input, spoiler)
 	end)
 end
 
 local function build_spoilers_by_number(tbl)
-	return text:gsub([[(<input type=hidden name=option value=(%d+)><input class=button type=submit value=")([^"]-)">]], function(pre, option, value)
-		local spoiler = tbl[tonumber(option)]
-		return build_spoiler(pre, value, spoiler)
-	end)
+	local newtbl = {}
+	for x, y in pairs(parse_choice_options(text)) do
+		if tbl[y] then
+			newtbl[x] = [[<span style="color: gray;">Fallback spoiler: ( ]] .. tbl[y] .. [[ )</span>]]
+		end
+	end
+	return build_spoilers_by_name(newtbl)
 end
 
 function do_choice_page_printing(text, title, adventure_title, choice_adventure_number)
@@ -132,31 +145,27 @@ if spoilers_tbl then
 		end
 		local build_spoilers = build_spoilers_by_name
 		if tbl[1] then
+			print("ERROR: Building spoilers by number for", adventure_title)
+			print("ERROR: This should not happen!")
 			-- assume array-like table
 			build_spoilers = build_spoilers_by_number
 		end
 		text = build_spoilers(tbl)
 	end
 elseif choice_adventure_number ~= nil then
-	print("fallback for", adventure_title, choice_adventure_number)
+--	print("fallback for", adventure_title, choice_adventure_number)
 	local isok, spoilers = pcall(function()
 		return datafile("choice spoilers")
 	end)
 	if isok and spoilers["choiceid:"..tostring(choice_adventure_number)] and choice_adventure_number ~= 546 then -- 546 is Vamping Out, the fallback source doesn't actually explain anything there and is just wrong
-		print("got", spoilers["choiceid:"..tostring(choice_adventure_number)])
-		text = text:gsub([[(<input type=hidden name=option value=)([0-9]+)(>)(<input class=button type=submit value=")([^"]-)(")(>)]], function(preopt, opt, postopt, pre, value, between, post)
-			local s = spoilers["choiceid:"..tostring(choice_adventure_number)][tonumber(opt)]
-			if s then
-				local spoiler = [[<br><span style="color: gray;">Fallback spoiler: ( ]] .. s .. [[ )</span>]]
-				return preopt .. opt .. postopt .. pre .. value .. between .. post .. spoiler
-			end
-		end)
+--		print("got", spoilers["choiceid:"..tostring(choice_adventure_number)])
+		text = build_spoilers_by_number(spoilers["choiceid:"..tostring(choice_adventure_number)])
 	end
 end
 
-if found_function == false and adventure_title ~= nil and adventure_title ~= "Results:" then
+if show_dev_info() and found_function == false and adventure_title ~= nil and adventure_title ~= "Results:" then
 	print("add_choice_text(\""..adventure_title.."\", { -- choice adventure number: " .. tostring(choice_adventure_number))
-	for x in text:gmatch([[<input class=button type=submit value="([^"]-)">]]) do
+	for x, y in pairs(parse_choice_options(text)) do
 		print([[	["]]..x..[["] = { text = "" },]])
 	end
 	print("})")
@@ -165,3 +174,37 @@ end
 return text
 
 end
+
+function parse_choice_options(pt)
+	local options = {}
+	for form in pt:gmatch("<form.-</form>") do
+		local titles = {}
+		local numbers = {}
+		for input in form:gmatch("<input[^>]+>") do
+			local title = input:match([[value="(.-)"]])
+			local number = tonumber(input:match([[value="?([0-9]+)"?]]))
+			if title and input:contains("submit") then
+				table.insert(titles, title)
+				local simpletitle = title:gsub(" %[.*%]$", "")
+				if simpletitle ~= title then
+					table.insert(titles, simpletitle)
+				end
+			end
+			if number and input:contains("option") then
+				table.insert(numbers, number)
+			end
+		end
+		for _, title in ipairs(titles) do
+			for _, number in ipairs(numbers) do
+				options[title] = number
+			end
+		end
+	end
+	return options
+end
+
+add_printer("all pages", function()
+	if choice_adventure_number or path == "/choice.php" then
+		text = do_choice_page_printing(text, title, adventure_title, choice_adventure_number)
+	end
+end)

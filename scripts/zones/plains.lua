@@ -54,12 +54,12 @@ add_choice_text("No sir, away!  A papaya war is on!", {
 })
 
 add_choice_text("Do Geese See God?", { -- choice adventure number: 129
-	["Buy the photograph (500 meat)"] = { get_item = "photograph of God", good_choice = true },
+	["Buy the photograph (500 meat)"] = { getitem = "photograph of God", good_choice = true },
 	["Politely decline"] = { leave_noturn = true },
 })
 
 add_choice_text("Rod Nevada, Vendor", { -- choice adventure number: 130
-	["Accept (500 Meat)"] = { get_item = "photograph of a red nugget", good_choice = true },
+	["Accept (500 Meat)"] = { getitem = "photograph of a red nugget", good_choice = true },
 	["Decline"] =  { leave_noturn = true },
 })
 
@@ -114,7 +114,7 @@ end)
 
 local function check_dr_awkwards_office_access()
 	if have_item("&quot;I Love Me, Vol. I&quot;") then return true end
-	local pt = get_page("/place.php", { whichplace = "palindome" })
+	local pt = get_place("palindome")
 	if not pt:contains("The Palindome") then return nil end
 	return pt:contains("Dr. Awkward's Office")
 end

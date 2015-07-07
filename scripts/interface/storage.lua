@@ -346,7 +346,7 @@ end)
 add_printer("/closet.php", function()
 	local pwd = text:match[[name="pwd" *value="(%x-)"]]
 	if pwd then
-		text = text:gsub([[%[Fill Your Closet%]</a>]], [[%0 <a href="]].. closet_href { pwd = pwd } ..[[" style="color:green">{ Closet some items }</a>]])
+		text = text:gsub([[%[Fill Your Closet%]</a>]], [[%0 <a href="]].. closet_href { pwd = pwd } ..[[" style="color: green">{ Closet some items }</a>]])
 	end
 end)
 
@@ -370,6 +370,32 @@ local pull_href = add_automation_script("automate-aftercore-pulls", automate_aft
 add_printer("/storage.php", function()
 	local pwd = text:match[[name=pwd value='(%x-)']]
 	if pwd then
-		text = text:gsub([[<input type=submit class=button value="Take all your stuff out of Hagnk's">]], [[<center><a href="]].. pull_href { pwd = pwd } ..[[" style="color:green">{ Pull some items }</a></center><p>%0]])
+		text = text:gsub([[<input type=submit class=button value="Take all your stuff out of Hagnk's">]], [[<center><a href="]].. pull_href { pwd = pwd } ..[[" style="color: green">{ Pull some items }</a></center><p>%0]])
 	end
 end)
+
+function retrieve_storage_items()
+	local storage = {}
+	local json = get_page("/api.php", { what = "storage", ["for"] = "Kolproxy by Eleron (from Lua script)", format = "json" })
+	for x, y in pairs(json_to_table(json)) do
+		storage[tonumber(x)] = y
+	end
+	return storage
+end
+
+local cached_storage_items = nil
+local cached_storage_state_id = nil
+function get_cached_storage_items()
+	if cached_storage_state_id ~= state_identifier() then
+		cached_storage_items = nil
+		cached_storage_state_id = state_identifier()
+	end
+	if not cached_storage_items then
+		cached_storage_items = retrieve_storage_items()
+	end
+	return cached_storage_items
+end
+
+function could_have_item_in_storage(item)
+	return get_cached_storage_items()[get_itemid(item)]
+end

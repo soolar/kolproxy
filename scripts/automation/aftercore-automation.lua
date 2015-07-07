@@ -19,13 +19,20 @@ local function autoattack_macro_id()
 end
 
 function spend_aftercore_turns()
+	local function buffvalue(name)
+		if have_buff(name) then
+			return 10000
+		else
+			return 0
+		end
+	end
 	local priorities = {
-		["automate-nemesis"] = 10,
-		["automate-a-quest-lol"] = 50,
-		["automate-nemesis-island"] = 100,
-		["automate-felonia"] = 1000,
-		["automate-suburbandis"] = 1500,
-		["automate-spaaace"] = 2000,
+		["automate-nemesis"] = 10000,
+		["automate-a-quest-lol"] = 7000,
+		["automate-nemesis-island"] = 5000,
+		["automate-felonia"] = 2000,
+		["automate-suburbandis"] = 1500 + buffvalue("Dis Abled"),
+		["automate-spaaace"] = 1000 + buffvalue("Transpondent"),
 	}
 	if advs() < 150 then
 		priorities["automate-nemesis"] = nil
@@ -40,7 +47,7 @@ function spend_aftercore_turns()
 			fs[x] = y.f
 		end
 	end
-	table.sort(available_scripts, function(a, b) return priorities[a] < priorities[b] end)
+	table.sort(available_scripts, function(a, b) return priorities[a] > priorities[b] end)
 
 	if #available_scripts >= 1 then
 		local x = available_scripts[1]
@@ -82,6 +89,8 @@ aftercore_automation_href = add_automation_script("aftercore-automation", functi
 	pull_storage_item("saucepan")
 	pull_storage_item("borrowed time")
 	use_item("borrowed time")
+
+	async_get_page("/campground.php", { action = "garden", pwd = session.pwd })
 
 	local function remaining_spleen()
 		return estimate_max_spleen() - spleen()
@@ -161,6 +170,8 @@ aftercore_automation_href = add_automation_script("aftercore-automation", functi
 	end
 	if not locked() and not available_scripts[1] then
 		if advs() > 0 then
+			script.wear {}
+			script.ensure_buffs {}
 			set_autoattack_id(autoattack_macro_id())
 			text, url = run_castle_turns(advs(), familiarid())
 		end
@@ -203,16 +214,16 @@ Pick macro to use for automation scripts:<br>
 end)
 
 add_printer("/main.php", function()
-	if tonumber(status().freedralph) == 0 then return end
+	if not finished_mainquest() then return end
 	if not setting_enabled("enable turnplaying automation") then return end
 
 	local rows = {}
 
 	if autoattack_macro_id() then
-		local alink = [[<a href="]]..aftercore_automation_href { pwd = session.pwd }..[[" style="color: green">{ Make aftercore go away }</a>]]
+		local alink = aftercore_automation_href { ahref_description = "Make aftercore go away" }
 		table.insert(rows, [[<tr><td><center>]] .. alink .. [[</center></td></tr>]])
 	else
-		local alink = [[<a href="]]..setup_aftercore_automation_href { pwd = session.pwd }..[[" style="color: green">{ Setup aftercore automation }</a>]]
+		local alink = setup_aftercore_automation_href { ahref_description = "Setup aftercore automation" }
 		table.insert(rows, [[<tr><td><center>]] .. alink .. [[</center></td></tr>]])
 	end
 

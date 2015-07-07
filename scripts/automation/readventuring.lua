@@ -24,24 +24,6 @@ local automate_zone_href = add_automation_script("automate-zone", function()
 	local zoneid = tonumber(params.zoneid)
 	local numtimes = tonumber(params.numtimes)
 	if zoneid and numtimes then
---		autochoices["Don't Hold a Grudge"] = "Declare a thumb war"
---		autochoices["Having a Medicine Ball"] = "Gaze deeply into the mirror"
---		autochoices["Out in the Garden"] = "None of the above"
---		if ascensionstatus("Aftercore") then
---			autochoices["Disgustin' Junction"] = "Head down the tunnel"
---			autochoices["The Former or the Ladder"] = "Take the tunnel"
---			autochoices["Somewhat Higher and Mostly Dry"] = "Head down the dark tunnel"
---
---			autochoices["Foreshadowing Demon!"] = "Head towards all the trouble"
---			autochoices["You Must Choose Your Destruction!"] = "Follow the fists"
---			autochoices["A Test of Your Mettle"] = "Sure! Let's go kick its ass into next week!"
---			autochoices["A Maelstrom of Trouble"] = "Head Toward the Peril"
---			autochoices["To Get Groped or Get Mugged?"] = "Head Toward the Perv"
---			autochoices["A Choice to be Made"] = "Of course, little guy! Let's leap into the fray!"
---			autochoices["You May Be on Thin Ice"] = "Fight Back Your Chills"
---			autochoices["Some Sounds Most Unnerving"] = "Infernal Pachyderms Sound Pretty Neat"
---			autochoices["One More Demon to Slay"] = "Sure! I'll be wearing its guts like a wreath!"
---		end
 		if params.noncombattitle and params.noncombatoption then
 			autochoices[params.noncombattitle] = params.noncombatoption
 		end
@@ -53,9 +35,6 @@ local automate_zone_href = add_automation_script("automate-zone", function()
 
 			if perform_before_automated_readventuring then
 				perform_before_automated_readventuring()
---			if hp() < maxhp() / 0.75 then
---				cast_skill("Cannelloni Cocoon")
---			end
 			end
 
 			-- adventure
@@ -102,7 +81,7 @@ function turn_automation_decorate_noncombat_page(pt, zoneid, timesleft)
 		pt = pt:gsub([[<input.->]], function(x)
 			local val = x:match([[value="(.-)"]])
 			if val and x:contains("type=submit") then
-				return x .. string.format([[<br><a href="%s" style="color:green">{ Automate: %s &rarr; %s }</a>]], automate_zone_href { pwd = session.pwd, zoneid = zoneid, numtimes = timesleft, noncombattitle = adventure_title, noncombatoption = val }, adventure_title, val)
+				return x .. string.format([[<br><a href="%s" style="color: green">{ Automate: %s &rarr; %s }</a>]], automate_zone_href { pwd = session.pwd, zoneid = zoneid, numtimes = timesleft, noncombattitle = adventure_title, noncombatoption = val }, adventure_title, val)
 			end
 		end)
 	end
@@ -121,7 +100,7 @@ function automate_N_turns(link, url) {
 		top.mainpane.location.href = (url + "&numtimes=" + N);
 	}
 }
-</script><br><a href="#" onclick="automate_N_turns(this, ']] .. link(x) .. [[')" style="color:green">{ Re-adventure here N times }</a>]]
+</script><br><a href="#" onclick="automate_N_turns(this, ']] .. link(x) .. [[')" style="color: green">{ Re-adventure here N times }</a>]]
 	end
 	text = text:gsub("(" .. match .. ")", function(alltext, a, b, c) return alltext .. " " .. newtext(a, b, c) .. "\n" end)
 end

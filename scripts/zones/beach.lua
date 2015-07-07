@@ -84,7 +84,7 @@ end)
 -- desert/oasis
 
 function get_desert_exploration(pt)
-	pt = pt or get_page("/place.php", { whichplace = "desertbeach" })
+	pt = pt or get_place("desertbeach")
 	if pt:contains("zonefont/percent.gif") then
 		local snippet = pt:match("zonefont/lparen.gif.-zonefont/percent.gif")
 		local digits = ""
@@ -98,29 +98,21 @@ end
 add_automator("/fight.php", function()
 	if text:contains(">Desert exploration <b>+") then
 		local explored = get_desert_exploration()
-		text = text:gsub(">Desert exploration <b>%+[0-9]*%%</b>", [[%0 <span style="color:green">{&nbsp;]] .. tostring(explored) .. [[%% explored&nbsp;}</span>]])
+		text = text:gsub(">Desert exploration <b>%+[0-9]*%%</b>", [[%0 <span style="color: green">{&nbsp;]] .. tostring(explored) .. [[%% explored&nbsp;}</span>]])
 	end
 end)
 
 -- TODO: Do these by noncombat choice option text, not option ID
 add_ascension_assistance(function() return have_item("stone rose") end, function()
-	get_page("/place.php", { whichplace = "desertbeach", action = "db_gnasir" })
+	get_place("desertbeach", "db_gnasir")
 	async_post_page("/choice.php", { pwd = session.pwd, whichchoice = 805, option = 2 })
 	async_post_page("/choice.php", { pwd = session.pwd, whichchoice = 805, option = 1 })
 end)
 
 add_ascension_assistance(function() return count_item("worm-riding manual page") >= 15 end, function()
-	get_page("/place.php", { whichplace = "desertbeach", action = "db_gnasir" })
+	get_place("desertbeach", "db_gnasir")
 	async_post_page("/choice.php", { pwd = session.pwd, whichchoice = 805, option = 2 })
 	async_post_page("/choice.php", { pwd = session.pwd, whichchoice = 805, option = 1 })
-end)
-
-add_ascension_assistance(function() return have_item("desert sightseeing pamphlet") end, function()
-	local c = count_item("desert sightseeing pamphlet")
-	use_item("desert sightseeing pamphlet")
-	if count_item("desert sightseeing pamphlet") < c then
-		reset_last_checked()
-	end
 end)
 
 add_warning {
@@ -149,7 +141,7 @@ add_warning {
 	zone = "The Arid, Extra-Dry Desert",
 	check = function()
 		if have_buff("Ultrahydrated") then return end
-		local pt = get_page("/place.php", { whichplace = "desertbeach" })
+		local pt = get_place("desertbeach")
 		if pt:contains("Oasis") then
 			return true
 		end

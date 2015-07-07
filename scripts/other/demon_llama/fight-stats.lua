@@ -35,7 +35,7 @@ local function make_monster_hp_meter(monster, width)
 
 	tooltip = math.max(0, data.ModHP) .. [[&nbsp;/&nbsp;]] .. data.HP
 
-	return [[<div class='monsterHP meter' style='width:]]..width..[[px;' title=']]..tooltip..[[' ><div style='width: ]]..math.floor(hpFrac * width)..[[px;background-color:]]..hpColor..[[;' class='meter monsterHPColor'><div class='meter shading'></div></div></div>]]
+	return [[<div class="monsterHP meter" style="width: ]]..width..[[px;" title="]]..tooltip..[[" ><div style="width: ]]..math.floor(hpFrac * width)..[[px; background-color: ]]..hpColor..[[;" class="meter monsterHPColor"><div class="meter shading"></div></div></div>]]
 end
 
 local function formatMonsterItems(monster, bonuses)
@@ -91,11 +91,14 @@ local function formatMonsterStats(monster, bonuses)
 			toolTipHTML = "<span class='tooltip'>" .. tooltip .. "</span>"
 		end
 
-		statData = statData .. "<div class='stat' style='color:" .. (color or "black") .. ";'><span style='margin-right:5px;'>" .. name .. ":</span><span>" .. display_value(value) .. "</span>"..toolTipHTML.."</div>"
+		statData = statData .. "<div class='stat' style='color: " .. (color or "black") .. ";'><span style='margin-right:5px;'>" .. name .. ":</span><span>" .. display_value(value) .. "</span>"..toolTipHTML.."</div>"
 	end
 
 	local function formatStatPercent(name, value, color, tooltip)
 		if not value or value == 0 then return end
+		if not color and value >= 90 then
+			color = "red"
+		end
 		return formatStat(name, value .. "%", color, tooltip)
 	end
 
@@ -125,7 +128,7 @@ local function formatMonsterStats(monster, bonuses)
 	formatStat("Watch out for", data.WatchOut)
 	if (data.physicalresistpercent or 0) ~= 0 or (data.elementalresistpercent or 0) ~= 0 then
 		if data.physicalresistpercent == data.elementalresistpercent then
-			formatStatPercent("Resist", data.physicalresistpercent)
+			formatStatPercent("Resist", data.physicalresistpercent, nil, "Reduces physical and elemental damage")
 		else
 			formatStatPercent("Physical resist", data.physicalresistpercent)
 			formatStatPercent("Elemental resist", data.elementalresistpercent)
@@ -133,21 +136,21 @@ local function formatMonsterStats(monster, bonuses)
 	end
 
 	if data.staggerimmune then
-		formatStatPercent("Stagger resist", 100, "red")
+		formatStatPercent("Stagger resist", 100, nil, "Monster is immune to stun and stagger effects and will attack every round")
 	elseif data.stunresistpercent then
-		formatStatPercent("Stun resist", data.stunresistpercent)
+		formatStatPercent("Stun resist", data.stunresistpercent, nil, "Chance each round to break out of stuns early")
 	end
 
 	if data.reflectspells then
-		formatStat("Spells", "Reflected")
+		formatStat("Spells", "Reflected", "red", "Spells cast will damage the player instead of the monster")
 	end
 
 	if data.preventcombatskill then
-		formatStat("Skills", "Blocked", "red")
+		formatStat("Skills", "Blocked", "red", "Any skills used will be blocked by the monster and do nothing")
 	end
 
 	if data.blockcombatitems then
-		formatStat("Combat items", "Blocked")
+		formatStat("Combat items", "Blocked", "red", "Any combat items used will be blocked by the monster and do nothing")
 	end
 
 	statData = statData .. "</div>"
@@ -169,7 +172,7 @@ local function formatMonsterPhylumTreasure(monster)
 		end
 	end
 
-	local html = [[<div style='display:none;font-size:12px;color:#666;margin:0px auto;text-align:left;' id='phylumData'>]]
+	local html = [[<div style='display: none; font-size: 12px; color: #666; margin: 0px auto; text-align: left;' id='phylumData'>]]
 	if familiar("Pair of Stomping Boots") then
 		local t = treasure.paste
 		html = html .. [[<div style='width:200px;margin:0px auto;'>]]..
@@ -275,25 +278,25 @@ add_printer("/fight.php", function()
 		text = text:gsub([[</head>]], [[
 <style>
 	.stat {
-		position:relative;
+		position: relative;
 	}
 
 	.stat .tooltip {
-		border:1px solid #666;
-		color:#666;
-		background-color:#f5f5f5;
-		padding:3px;
-		display:none;
-		border-radius:2px;
+		border: 1px solid #666;
+		color: #666;
+		background-color: #f5f5f5;
+		padding: 3px;
+		display: none;
+		border-radius: 2px;
 	}
 
 	.stat:hover .tooltip {
-		display:block;
+		display: block;
 		position: absolute;
-		left:10px;
-		top:17px;
-		z-index:99;
-		width:100px;
+		left: 10px;
+		top: 17px;
+		z-index: 99;
+		width: 100px;
 		box-shadow: 3px 3px 4px #777;
 	}
 </style>
@@ -309,7 +312,7 @@ add_printer("/fight.php", function()
 		if monster then
 			text = text:gsub([[(id=['"]monname['"].-)(</td>)]], function(prefix, suffix)
 				local bonuses = estimate_current_bonuses() + estimate_fight_page_bonuses(text)
-				return prefix .. [[<div style='font-size:11px;color:#555;margin-top:5px;'>]] .. formatMonsterStats(monster, bonuses) .. formatMonsterItems(monster, bonuses) .. [[</div>]] .. suffix
+				return prefix .. [[<div style='font-size: 11px; color: #555; margin-top: 5px;'>]] .. formatMonsterStats(monster, bonuses) .. formatMonsterItems(monster, bonuses) .. [[</div>]] .. suffix
 			end)
 
 			if monster.Stats.Phylum then
@@ -318,8 +321,8 @@ add_printer("/fight.php", function()
 			end
 
 			if ascensionpath("Bees Hate You") then
-				local boldedName = monstername():gsub("[bB]", [[<span style="font-weight:bold;color:orange;">%0</span>]])
-				text = text:gsub(monstername(), boldedName)
+				local boldedName = get_monstername():gsub("[bB]", [[<span style="font-weight: bold; color: orange;">%0</span>]])
+				text = text:gsub(get_monstername(), boldedName)
 			end
 		end
 	end

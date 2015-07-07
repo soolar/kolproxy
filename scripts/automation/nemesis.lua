@@ -9,6 +9,22 @@ local required_items_perclass = {
 	{ lew = "Squeezebox of the Ages", ew = "Rock and Roll Legend", extra = "golden reeds", door = { "dirty hobo gloves", "insanely spicy jumping bean burrito" } },
 }
 
+local rerun_workaround_counter = 0
+local rerun_turn = nil
+
+local function rerun_check()
+	if turnsplayed() ~= rerun_turn then
+		rerun_workaround_counter = 0
+		rerun_turn = turnsplayed()
+		return true
+	elseif rerun_workaround_counter < 10 then
+		rerun_workaround_counter = rerun_workaround_counter + 1
+		return true
+	else
+		return false
+	end
+end
+
 setup_turnplaying_script {
 	name = "automate-nemesis",
 	description = "Automate Nemesis quest (first part)",
@@ -21,7 +37,7 @@ setup_turnplaying_script {
 			critical "Class not supported for nemesis script."
 		end
 
-		local need_items = { "clown whip", "clownskin buckler", "ring of conflict" }
+		local need_items = { "clown whip", "clownskin buckler", "ring of conflict", "tenderizing hammer" }
 		if not have_item(required_items.lew) then
 			table.insert(need_items, required_items.ew)
 		end
@@ -46,51 +62,51 @@ setup_turnplaying_script {
 	end
 	dorefresh()
 
-	if scg:match([[How goes your quest to restore the Legendary Epic Weapon]]) or scg:match([[acquire the Legendary Epic Weapon soon]]) or scg:match([[going with that Legendary Epic Weapon]]) then
+	if quest_text("for the Tomb of the Unknown") then
+		script.wear {}
+		script.ensure_mp(50)
+		result, resulturl, advagain = autoadventure { zoneid = get_zoneid("The Unquiet Garves") }
+	elseif quest_text("Find Beelzebozo in") then
 		inform "make LEW"
 		result = "make LEW"
-		if quest_text("you must defeat Beelzebozo") then
-			-- TODO: make robust
-			-- wear stuff
-			equip_item("clown whip")
-			equip_item("clownskin buckler")
-			equip_item("ring of conflict", 3)
-			-- TODO: check that we're wearing them
-			-- adventure repeatedly
-			for i = 1, 100 do
-				-- buff up
-				if not have_buff("The Sonata of Sneakiness") then
-					cast_skillid(6015, 2) -- sonata of sneakiness
-				end
-				if not have_buff("Smooth Movements") then
-					cast_skillid(5017, 2) -- smooth moves
-				end
-				script.ensure_mp(50)
-				result, resulturl, advagain = autoadventure { zoneid = 20, noncombatchoices = {
-					["Adventurer, $1.99"] = "Push the nose",
-					["Lurking at the Threshold"] = "Open the door",
-				} }
-				if result:contains("Clownlord Beelzebozo") then
-					result, resulturl = cast_autoattack_macro()
-				end
-				if not advagain then
-					break
-				end
+		-- TODO: make robust
+		-- wear stuff
+		equip_item("clown whip")
+		equip_item("clownskin buckler")
+		equip_item("ring of conflict", 3)
+		-- TODO: check that we're wearing them
+		-- adventure repeatedly
+		for i = 1, 100 do
+			-- buff up
+			if not have_buff("The Sonata of Sneakiness") then
+				cast_skillid(6015, 2) -- sonata of sneakiness
 			end
-			refresh_quest()
-			advagain = not quest_text("you must defeat Beelzebozo")
-		elseif not have_item(required_items.lew) and have_item(required_items.ew) and have_item(required_items.extra) then
+			if not have_buff("Smooth Movements") then
+				cast_skillid(5017, 2) -- smooth moves
+			end
+			script.ensure_mp(50)
+			result, resulturl, advagain = autoadventure { zoneid = 20, noncombatchoices = {
+				["Adventurer, $1.99"] = "Push the nose",
+				["Lurking at the Threshold"] = "Open the door",
+			} }
+			if result:contains("Clownlord Beelzebozo") then
+				result, resulturl = cast_autoattack_macro()
+			end
+			if not advagain then
+				break
+			end
+		end
+		refresh_quest()
+		advagain = not quest_text("Find Beelzebozo in")
+	elseif not have_item(required_items.lew) and have_item(required_items.ew) and have_item(required_items.extra) then
+		set_result(smith_items(required_items.ew, required_items.extra))
+		if not have_item(required_items.lew) then
 			smith_items(required_items.ew, required_items.extra)
-			if not have_item(required_items.lew) then
-				smith_items(required_items.ew, required_items.extra)
-			end
-			if have_item(required_items.lew) then
-				advagain = true
-			else
-				critical "Failed to smith Legendary Epic Weapon."
-			end
+		end
+		if have_item(required_items.lew) then
+			advagain = true
 		else
-			critical "Failed to make Legendary Epic Weapon."
+			critical "Failed to smith Legendary Epic Weapon."
 		end
 	elseif scg:match([[Have you defeated your Nemesis yet]]) or scg:match([[We need you to defeat your Nemesis]]) or scg:match([[Haven't beat your Nemesis yet]]) then
 		inform "do nemesis cave"
@@ -172,9 +188,14 @@ setup_turnplaying_script {
 				["The Singing Tree"] = "&quot;No singing, thanks.&quot;",
 				["The Baker's Dilemma"] = "&quot;Sorry, I'm busy right now.&quot;",
 			} }
+		elseif rerun_check() then
+			advagain = true
 		else
 			stop "TODO: Wait for nemesis assassins??? Or missing guild quest? Or missing nemesis quest?"
 		end
+	elseif rerun_check() then
+		inform "nothing to do, trying again"
+		advagain = true
 	else
 		stop "TODO: Next quest step???"
 	end
@@ -207,54 +228,22 @@ setup_turnplaying_script {
 	end,
 	adventuring = function()
 		if quest_text("found a map to the secret tropical island") then
-			result = "do tropical island"
-			-- wear stuff
-			equip_item("pirate fledges", 2)
-			equip_item("ring of conflict", 3)
-			-- adventure repeatedly
-			for i = 1, 100 do
-				-- buff up
-				if not have_buff("The Sonata of Sneakiness") then
-					cast_skillid(6015, 2) -- sonata of sneakiness
-				end
-				if not have_buff("Smooth Movements") then
-					cast_skillid(5017, 2) -- smooth moves
-				end
-				result, resulturl, advagain = autoadventure { zoneid = 159, macro = automation_macro }
-				if not advagain then
-					break
-				end
--- choice	O Cap'm, My Cap'm	189
--- opt	1	Front the meat and take the wheel
--- opt	2	Step away from the helm
--- opt	3	Show the tropical island volcano lair map to the navigator
-			end
+			set_result(use_item("secret tropical island volcano lair map"))
+			refresh_quest()
+			advagain = not quest_text("found a map to the secret tropical island")
 		elseif quest_text("put a stop to this Nemesis nonsense") or (quest("Me and My Nemesis") and have_item("secret tropical island volcano lair map")) then
-			if classid() == 1 then -- seal clubber
-				stop "TODO: Automate seal clubber island"
-			elseif classid() == 2 then -- turtle tamer
-				automate_TT_nemesis_island()
-			elseif classid() == 3 then -- pastamancer
-				if not have_item("encoded cult documents") then
-					get_page("/volcanoisland.php", { pwd = session.pwd, action = "npc" })
+			if playerclass("Seal Clubber") then
+				if not have_item("hellseal disguise") then
+					stop "TODO: Automate seal clubber island"
 				end
-				stop "TODO: Automate pastamancer island"
--- "proxy:/volcanoisland.php?pwd=a412cd1e0a0d040806269162e564fcb1&action=tuba"  Nothing (get info)
--- "proxy:/volcanoisland.php?pwd=a412cd1e0a0d040806269162e564fcb1&action=tuba"  Nothing
--- "proxy:/adventure.php?snarfblat=217"
--- collect 5 cult memo, use "cult memo"
--- use "decoded cult documents"
--- use spirit in volcano combat until ...
--- equip accessory "spaghetti cult robe"
--- "proxy:/volcanoisland.php?pwd=a412cd1e0a0d040806269162e564fcb1&action=tniat"  Nothing
--- "proxy:/adventure.php?snarfblat=221"
--- repeat until... boss fight, Angelhair Culottes
--- equip weapon Greek Pasta of Peril
--- "proxy:/volcanoisland.php?pwd=a412cd1e0a0d040806269162e564fcb1&action=tniat"  Nothing
--- "proxy:/volcanomaze.php?"  Nothing
-			elseif classid() == 4 then -- sauceror
+				try_killing_SC_nemesis()
+			elseif playerclass("Turtle Tamer") then
+				automate_TT_nemesis_island()
+			elseif playerclass("Pastamancer") then
+				automate_P_nemesis_island()
+			elseif playerclass("Sauceror") then
 				automate_S_nemesis_island()
-			elseif classid() == 5 then -- disco bandit
+			elseif playerclass("Disco Bandit") then
 				automate_DB_nemesis_island()
 				result, resulturl = text, url
 			elseif playerclass("Accordion Thief") then
@@ -270,7 +259,7 @@ setup_turnplaying_script {
 
 function nemesis_try_sauceror_potions()
 	if have_buff("Slimeform") then
-		return
+		return true
 	end
 	local goal_potions = {
 		["vial of amber slime"] = { "vial of yellow slime", "vial of orange slime" },
@@ -295,7 +284,7 @@ function nemesis_try_sauceror_potions()
 		if not known_potion_effects[x] then
 			if have_item(x) then
 				local bl = buffslist()
-				use_item(x)
+				use_item(x)()
 				for a, b in pairs(buffslist()) do
 					if b > (bl[a] or 0) then
 						print("potion effect", x, "=", a)
@@ -314,6 +303,55 @@ function nemesis_try_sauceror_potions()
 			end
 		end
 	end
+	return false
+end
+
+local function check_volcanomaze()
+	if result:contains([[value="Continue"]]) then
+		result, resulturl = get_page("/volcanomaze.php", { start = 1 })
+		automate_volcanomaze()
+		script.ensure_buffs {}
+		script.heal_up()
+		script.ensure_mp(100)
+		result, resulturl = get_page("/volcanomaze.php")
+		advagain = false
+	end
+end
+
+function try_killing_SC_nemesis()
+	script.bonus_target { "easy combat" }
+	script.ensure_buffs {}
+	script.wear { weapon = "Hammer of Smiting" }
+	script.heal_up()
+	script.ensure_mp(50)
+	local fought = false
+	result, resulturl = get_page("/volcanoisland.php", { pwd = session.pwd, action = "tniat" })
+	print("DEBUG: lock url cont", locked(), resulturl, result:contains([[value="Continue"]]))
+	if locked() or not resulturl:contains("volcanoisland.php") or result:contains([[value="Continue"]]) then
+		fought = true
+	end
+	result, resulturl, advagain = handle_adventure_result(result, resulturl, "?", macro_noodleserpent)
+	print("DEBUG: lock url advagain", locked(), resulturl, advagain)
+	check_volcanomaze()
+	return fought
+end
+
+function try_killing_TT_nemesis()
+	script.bonus_target { "easy combat" }
+	script.ensure_buffs {}
+	script.wear { weapon = "Chelonian Morningstar" }
+	script.heal_up()
+	script.ensure_mp(50)
+	local fought = false
+	result, resulturl = get_page("/volcanoisland.php", { pwd = session.pwd, action = "tniat" })
+	print("DEBUG: lock url cont", locked(), resulturl, result:contains([[value="Continue"]]))
+	if locked() or not resulturl:contains("volcanoisland.php") or result:contains([[value="Continue"]]) then
+		fought = true
+	end
+	result, resulturl, advagain = handle_adventure_result(result, resulturl, "?", macro_noodleserpent)
+	print("DEBUG: lock url advagain", locked(), resulturl, advagain)
+	check_volcanomaze()
+	return fought
 end
 
 function automate_TT_nemesis_island()
@@ -324,7 +362,8 @@ function automate_TT_nemesis_island()
 	async_get_page("/volcanoisland.php", { pwd = session.pwd, action = "npc" })
 	local ptnpc = get_page("/volcanoisland.php", { pwd = session.pwd, action = "npc" })
 	if ptnpc:contains("watch his turtles practice their backflips") then
-		stop "Finish quest."
+		try_killing_TT_nemesis()
+		return
 	end
 
 	script.bonus_target { "easy combat" }
@@ -359,27 +398,129 @@ endif
 	end
 end
 
-function try_killing_nemesis()
+function try_killing_P_nemesis()
+	script.bonus_target { "easy combat" }
+	script.ensure_buffs {}
+	script.wear { weapon = "Greek Pasta of Peril" }
+	script.ensure_mp(50)
+	fought = false
+	local had_cult_robe = have_equipped_item("spaghetti cult robe")
+	result, resulturl = get_page("/volcanoisland.php", { pwd = session.pwd, action = "tniat" })
+	print("DEBUG: lock url cont", locked(), resulturl, result:contains([[value="Continue"]]))
+	if locked() or not resulturl:contains("volcanoisland.php") or result:contains([[value="Continue"]]) then
+		fought = true
+	end
+	if had_cult_robe and not have_equipped_item("spaghetti cult robe") then
+		fought = true
+	end
+	result, resulturl, advagain = handle_adventure_result(result, resulturl, "?", macro_noodleserpent)
+	print("DEBUG: lock url advagain", locked(), resulturl, advagain)
+	check_volcanomaze()
+	return fought
+end
+
+function automate_P_nemesis_island()
+	if not have_item("encoded cult documents") then
+		get_page("/volcanoisland.php", { pwd = session.pwd, action = "npc" })
+	end
+	if try_killing_P_nemesis() then
+		print("DEBUG: killing nemesis...")
+		return
+	end
+	stop "TODO: Automate pastamancer island"
+end
+
+				-- farm and use 5 "cult memo" if don't have skill, use "decoded cult documents"
+				-- cast thrall
+				-- use fatten-item if available
+				-- fight until heavy if not
+				-- fight with heavy thrall
+				-- equip "spaghetti cult robe", go to lair
+				-- equip "Greek Pasta of Peril", do lair and maze
+				-- kill boss, cast noodles a lot
+function automation_step(tbl)
+end
+
+automation_step {
+	provides = {
+	},
+	requires = {
+	},
+	action = function()
+	end,
+}
+
+--need disguise
+--  fight with thrall
+--  need thrall lvl X
+--    use fatten-item if available
+--    need thrall
+--      need skill
+--        need docs
+--          use pages
+--            need pages
+--              farm pages
+
+function try_killing_S_nemesis()
 	script.bonus_target { "easy combat" }
 	script.ensure_buffs {}
 	script.wear { weapon = "17-alarm Saucepan" }
 	script.ensure_mp(50)
 	fought = false
+	local had_slimeform = have_buff("Slimeform")
 	result, resulturl = get_page("/volcanoisland.php", { pwd = session.pwd, action = "tniat" })
+	print("DEBUG: lock url cont", locked(), resulturl, result:contains([[value="Continue"]]))
 	if locked() or not resulturl:contains("volcanoisland.php") or result:contains([[value="Continue"]]) then
 		fought = true
 	end
+	if had_slimeform and not have_buff("Slimeform") then
+		fought = true
+	end
 	result, resulturl, advagain = handle_adventure_result(result, resulturl, "?", macro_noodleserpent)
+	if fought then
+		advagain = true
+	end
+	print("DEBUG: lock url advagain", locked(), resulturl, advagain)
+	if result:contains([[value="Continue"]]) then
+		result, resulturl = get_page("/volcanomaze.php", { start = 1 })
+		automate_volcanomaze()
+		script.ensure_buffs { "Jalape&ntilde;o Saucesphere", "Elemental Saucesphere", "Antibiotic Saucesphere", "Scarysauce" }
+		script.ensure_mp(100)
+		script.heal_up()
+		local buffs = 0
+		for _, x in ipairs { "Jalape&ntilde;o Saucesphere", "Elemental Saucesphere", "Antibiotic Saucesphere" } do
+			if have_buff(x) then
+				buffs = buffs + 1
+			end
+		end
+		if buffs >= 2 then
+			result, resulturl = get_page("/volcanomaze.php", { move = "6,6" })
+			result, resulturl, advagain = handle_adventure_result(result, resulturl, "?", macro_noodleserpent)
+			advagain = false
+		end
+	end
 	return fought
 end
 
 function automate_S_nemesis_island()
-	if try_killing_nemesis() then
+	if try_killing_S_nemesis() then
+		print("DEBUG: killing nemesis...")
 		return
+	end
+	if locked() then
+		print("DEBUG: locked nemesis")
+		return
+	end
+	if have_buff("Slimeform") then
+		critical "TODO: kill nemesis"
 	end
 	nemesis_try_sauceror_potions()
 	if have_buff("Slimeform") then
-		stop "TODO: kill nemesis"
+		advagain = true
+		return
+	end
+	if not have_item("bottle of G&uuml;-Gone") then
+		get_page("/volcanoisland.php", { pwd = session.pwd, action = "npc" })
 	end
 	get_page("/account.php", { action = "autoattack", whichattack = 0, ajax = 1, pwd = session.pwd }) -- unset autoattack, bleh
 	script.bonus_target { "easy combat" }
@@ -396,12 +537,35 @@ repeat
 	end
 	local pt, url = get_page("/volcanoisland.php", { pwd = session.pwd, action = "tuba" })
 	result, resulturl, advagain = handle_adventure_result(pt, url, "?", macro_nemesis_sauceror)
+	if result:contains([[several of the slimes take notice of you and begin to quiver agitatedly]]) then
+		advagain = true
+	end
 end
 
 function automate_DB_nemesis_island()
 			text = "automate DB island!"
 			local pwd = session.pwd
 			get_page("/account.php", { action = "autoattack", whichattack = "0", ajax = "1", pwd = pwd }) -- unset autoattack, bleh
+
+	local npcpt = get_page("/volcanoisland.php", { pwd = session.pwd, action = "npc" })
+	if npcpt:contains("I saw you got inside,") then
+		script.bonus_target { "easy combat" }
+		script.ensure_buffs {}
+		script.wear { weapon = "Shagadelic Disco Banjo" }
+		script.ensure_mp(50)
+		result, resulturl = get_page("/volcanoisland.php", { pwd = session.pwd, action = "tniat" })
+		local fought = false
+		print("DEBUG: lock url cont", locked(), resulturl, result:contains([[value="Continue"]]))
+		if locked() or not resulturl:contains("volcanoisland.php") or result:contains([[value="Continue"]]) then
+			fought = true
+		end
+		result, resulturl, advagain = handle_adventure_result(result, resulturl, "?", macro_noodleserpent)
+		print("DEBUG: lock url advagain", locked(), resulturl, advagain)
+		check_volcanomaze()
+		text = result
+		return
+	end
+
 			local skillnames = { "Break It On Down", "Pop and Lock It", "Run Like the Wind" }
 			if have_skill("Gothy Handwave") then
 				if have_skill("Break It On Down") and have_skill("Pop and Lock It") and have_skill("Run Like the Wind") then

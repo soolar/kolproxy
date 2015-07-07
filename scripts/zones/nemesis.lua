@@ -112,11 +112,11 @@ add_processor("/fight.php", function()
 		["pop-and-lock raver"] = "spastic and jerky",
 		["running man"] = "running anywhere",
 	}
-	if dancers[monstername()] then
+	if dancers[get_monstername()] then
 		if not fight["nemesis.dancer"] then
 			fight["nemesis.dancer"] = "yes"
 		end
-		if text:contains(dancers[monstername()]) then
+		if text:contains(dancers[get_monstername()]) then
 			fight["nemesis.dancer.special move"] = "yes"
 		else
 			fight["nemesis.dancer.special move"] = nil
@@ -498,7 +498,8 @@ volcano_solutions[6] = [[
 7, 6
 ]]
 
-local href = add_automation_script("automate-volcanomaze", function()
+
+function automate_volcanomaze()
 	text, url = "Solving volcano puzzle", requestpath
 	volcano = get_page("/volcanomaze.php")
 	platforms = {}
@@ -557,10 +558,12 @@ local href = add_automation_script("automate-volcanomaze", function()
 		text = "Swim back to shore first to enable solving"
 	end
 	return text, url
-end)
+end
+
+local href = add_automation_script("automate-volcanomaze", automate_volcanomaze)
 
 add_printer("/volcanomaze.php", function()
-	text = text:gsub([[value="Swim Back to Shore".->]], [[%0<br><a href="]].. href { pwd = session.pwd } ..[[" style="color:green">{ solve }</a>]])
+	text = text:gsub([[value="Swim Back to Shore".->]], [[%0<br><a href="]].. href { pwd = session.pwd } ..[[" style="color: green">{ solve }</a>]])
 end)
 
 add_printer("/fight.php", function()

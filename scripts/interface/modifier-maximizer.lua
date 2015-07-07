@@ -13,7 +13,7 @@ function maximize_equipment_slot_bonuses(slot, scoref_raw)
 	local base_bonuses_without_slot = estimate_modifier_bonuses_base()
 	local slot_eqitemid = equipment()[slot]
 	if slot_eqitemid then
-		subtract_modifier_bonuses(base_bonuses_without_slot, estimate_item_equip_bonuses_uncached(slot_eqitemid))
+		subtract_modifier_bonuses(base_bonuses_without_slot, estimate_item_equip_bonuses(slot_eqitemid))
 	end
 	local bonuses_without_slot_with_synergy = make_bonuses_table(base_bonuses_without_slot)
 	bonuses_without_slot_with_synergy.add(estimate_current_synergy(base_bonuses_without_slot))
@@ -24,7 +24,7 @@ function maximize_equipment_slot_bonuses(slot, scoref_raw)
 	local score_without_bonuses = scoref({})
 
 	local function score_item(name)
-		local item_bonuses = estimate_item_equip_bonuses_uncached(name)
+		local item_bonuses = estimate_item_equip_bonuses(name)
 		if item_bonuses["Smithsness"] == 0 then
 			return scoref(item_bonuses) - score_without_bonuses
 		end
@@ -49,31 +49,39 @@ function maximize_equipment_slot_bonuses(slot, scoref_raw)
 		local d = maybe_get_itemdata(itemid)
 		if name and d and d.equipment_slot == slot_type and wornslot == slot then
 			previous_item_score = score_item(name)
-			table.insert(options, { name = name, score = score_item(name), worn = true, wornslot = wornslot, itemid = itemid, canwear = true })
+			table.insert(options, { name = name, score = score_item(name), worn = true, wornslot = wornslot, itemid = itemid, canwear = true, priority = 1000 })
 		end
 	end
+	table.insert(options, { name = "(none)", score = 0, worn = true, priority = 1, canwear = true })
 	for itemid, _ in pairs(inventory()) do
 		local name = maybe_get_itemname(itemid)
 		local d = maybe_get_itemdata(itemid)
 		if name and d and d.equipment_slot == slot_type then
 			if d.equip_requirements and d.equip_requirements["You may not equip more than one of these at a time"] and have_equipped_item(name) then
 			else
-				table.insert(options, { name = name, score = score_item(name), worn = false, itemid = itemid, canwear = can_equip_item(name) })
+				table.insert(options, { name = name, score = score_item(name), itemid = itemid, canwear = can_equip_item(name), priority = 0 })
 			end
 		end
 	end
-	table.insert(options, { name = "(none)", score = 0, worn = true, wornslot = "zzz1", canwear = true })
-	table.insert(options, { name = "(none)", score = 0, worn = true, wornslot = "zzz2", canwear = true })
-	table.insert(options, { name = "(none)", score = 0, worn = true, wornslot = "zzz3", canwear = true })
+	if have_storage_access() then
+		for itemid, _ in pairs(get_cached_storage_items()) do
+			local name = maybe_get_itemname(itemid)
+			local d = maybe_get_itemdata(itemid)
+			if name and d and d.equipment_slot == slot_type then
+				if d.equip_requirements and d.equip_requirements["You may not equip more than one of these at a time"] and have_equipped_item(name) then
+				else
+					table.insert(options, { name = name, score = score_item(name), itemid = itemid, canwear = can_equip_item(name), priority = -1, from_storage = true })
+				end
+			end
+		end
+	end
 	table.sort(options, function(a, b)
 		if a.canwear ~= b.canwear then
 			return a.canwear
 		elseif a.score ~= b.score then
 			return a.score > b.score
-		elseif a.worn ~= b.worn then
-			return a.worn
-		elseif a.wornslot ~= b.wornslot then
-			return a.wornslot < b.wornslot
+		elseif a.priority ~= b.priority then
+			return a.priority > b.priority
 		else
 			return a.name < b.name
 		end
@@ -180,54 +188,40 @@ function add_modifier_maximizer_script_link_function(f)
 	table.insert(registered_script_links, f)
 end
 
-modifier_maximizer_href = add_automation_script("custom-modifier-maximizer", function()
-	local resultpt = ""
-	if params.equip_itemname and params.equip_slot then
-		if params.equip_itemname == "(none)" then
-			resultpt = unequip_slot(params.equip_slot)()
-		else
-			resultpt = equip_item(params.equip_itemname, params.equip_slot)()
-		end
-	elseif params.cast_skillname then
-		resultpt = cast_skill(params.cast_skillname)()
-	elseif params.use_itemname then
-		resultpt = use_item(params.use_itemname)()
-	end
+local score_function_bonuses = {
+	"Monsters will be more attracted to you",
+	"Monsters will be less attracted to you",
+	"Item Drops from Monsters",
+	"Monster Level",
+	"Combat Initiative",
+	"Meat from Monsters",
+	"HP & cold/spooky resistance",
+	"Familiar Weight",
+	"Max HP",
+	"Muscle",
+	"Mysticality",
+	"Moxie",
+	"Adventures per day",
+	"PvP fights per day",
+	"All resistances",
+	"Cold Resistance",
+	"Hot Resistance",
+	"Sleaze Resistance",
+	"Spooky Resistance",
+	"Stench Resistance",
+	"Slime Resistance",
+	"All weapon damage",
+	"Cold Damage",
+	"Hot Damage",
+	"Sleaze Damage",
+	"Spooky Damage",
+	"Stench Damage",
+}
 
-	local bonuses = {
-		"Monsters will be more attracted to you",
-		"Monsters will be less attracted to you",
-		"Item Drops from Monsters",
-		"Monster Level",
-		"Combat Initiative",
-		"Meat from Monsters",
-		"HP & cold/spooky resistance",
-		"Familiar Weight",
-		"Max HP",
-		"Muscle",
-		"Mysticality",
-		"Moxie",
-		"Adventures per day",
-		"PvP fights per day",
-		"All resistances",
-		"Cold Resistance",
-		"Hot Resistance",
-		"Sleaze Resistance",
-		"Spooky Resistance",
-		"Stench Resistance",
-		"Slime Resistance",
-		"All weapon damage",
-		"Cold Damage",
-		"Hot Damage",
-		"Sleaze Damage",
-		"Spooky Damage",
-		"Stench Damage",
-	}
-
-	local whichbonus = params.whichbonus
-	if params.fuzzy then
-		for _, x in ipairs(bonuses) do
-			if x:lower():contains(params.fuzzy:lower()) then
+function get_modifier_maximizer_score_function(whichbonus, fuzzy)
+	if fuzzy then
+		for _, x in ipairs(score_function_bonuses) do
+			if x:lower():contains(fuzzy:lower()) then
 				whichbonus = x
 				break
 			end
@@ -275,54 +269,37 @@ modifier_maximizer_href = add_automation_script("custom-modifier-maximizer", fun
 			return bonuses["Weapon Damage"] + bonuses["Weapon Damage %"] / 2 + bonuses["Cold Damage"] + bonuses["Hot Damage"] + bonuses["Sleaze Damage"] + bonuses["Spooky Damage"] + bonuses["Stench Damage"]
 		end
 	end
+	return scoref, whichbonus
+end
 
-	local equipmentlines = {}
-	kolproxy_log_time_interval("DEBUG equipment", function()
-
+function get_modifier_maximizer_equipment_suggestions(scoref)
 	local previous_scores = {}
-	local suggested_scores = {}
 --	local item_in_outfit = {}
 --	local chosen_outfit_score = 0
-	local function add(slottitle, itemid, where)
-		local item = { name = "(none)", score = 0 }
-		local extra = ""
-		if itemid then
-			item = { name = maybe_get_itemname(itemid), score = suggested_scores[where] or 0 }
---			if item_in_outfit[itemid] then
---				extra = string.format("[outfit score: %+d]", chosen_outfit_score)
---			end
-		end
-		if equipment()[where] == itemid then
-			table.insert(equipmentlines, string.format([[<tr style="color: gray"><td>%s</td><td>%s (%+d)</td><td>%s (%+d)</td><td>%s</td></tr>]], slottitle, item.name, item.score, item.name, item.score, extra))
-		else
-			table.insert(equipmentlines, string.format([[<tr><td>%s</td><td style="color: gray">%s (%+d)</td><td><a href="%s" style="color: green">%s</a> (%+d)</td><td>%s</td></tr>]], slottitle, maybe_get_itemname(equipment()[where]) or "", previous_scores[where], modifier_maximizer_href { pwd = session.pwd, whichbonus = params.whichbonus, equip_itemname = item.name, equip_slot = where }, item.name, item.score, extra))
-		end
-	end
 
-	local suggested_equipment = {}
+	local slot_alternatives = {}
+	local slot_suggestion = {}
 	for _, slot in ipairs { "hat", "container", "shirt", "weapon", "offhand", "pants", "acc1", "acc2", "acc3" } do
-		local items, prevscore = 
-kolproxy_log_time_interval("DEBUG eqslot:" .. slot, function()
-return maximize_equipment_slot_bonuses(slot, scoref)
-end)
-		suggested_equipment[slot] = items[1].itemid
-		suggested_scores[slot] = items[1].score
+--		local items, prevscore = 
+--kolproxy_log_time_interval("DEBUG eqslot:" .. slot, function()
+--return maximize_equipment_slot_bonuses(slot, scoref)
+--end)
+		local items, prevscore = maximize_equipment_slot_bonuses(slot, scoref)
+		slot_alternatives[slot] = items
+		slot_suggestion[slot] = items[1]
 		previous_scores[slot] = prevscore
 	end
 
---	if suggested_equipment.weapon and suggested_equipment.offhand and is_twohanded_weapon(suggested_equipment.weapon) then
---		local 2h_weapon_score = score_equiment_replacement(scoref, suggested_equipment.weapon, equipment().weapon, equipment().offhand)
---		local offhand_score = score_item(scoref, suggested_equipment.offhand)
---		local items = maximize_equipment_slot_bonuses("weapon", scoref)
---		for _, x in ipairs(items) do
---			if not x.itemid or not is_twohanded_weapon(x.itemid) then
---				if x.score + offhand_score >= weapon_score then
---					suggested_equipment.weapon = x.itemid
---				end
---				break
---			end
---		end
---	end
+	if slot_suggestion.weapon and slot_suggestion.offhand and is_twohanded_weapon(slot_suggestion.weapon.itemid) then
+		for _, x in ipairs(slot_alternatives.weapon) do
+			if not x.itemid or not is_twohanded_weapon(x.itemid) then
+				if x.score + slot_suggestion.offhand.score > slot_suggestion.weapon.score then
+					slot_suggestion.weapon = x
+				end
+				break
+			end
+		end
+	end
 
 --	local best_outfit_items = {}
 --	local best_outfit_score = 0
@@ -361,17 +338,84 @@ end)
 --		item_in_outfit[get_itemid(x)] = true
 --	end
 
-	if suggested_equipment.weapon and is_twohanded_weapon(suggested_equipment.weapon) then
-		suggested_equipment.offhand = nil
+	if slot_suggestion.weapon and slot_suggestion.weapon.itemid and is_twohanded_weapon(slot_suggestion.weapon.itemid) then
+		slot_suggestion.offhand = nil
+	end
+	return slot_suggestion, slot_alternatives, previous_scores
+end
+
+function automatically_maximize_equipment_for_score_function(scoref)
+	local function pick_best()
+		local suggestions = get_modifier_maximizer_equipment_suggestions(scoref)
+		local best_itemid = nil
+		local best_slot = nil
+		local best_score = -1000000
+		for x, y in pairs(suggestions) do
+			if y.score > best_score and not y.worn then
+				best_score = y.score
+				best_itemid = y.itemid
+				best_slot = x
+			end
+		end
+		return best_itemid, best_slot
+	end
+	for i = 1, 100 do
+		local itemid, slot = pick_best(scoref)
+		if not itemid then break end
+		print("DEBUG: choosing equipment", slot, maybe_get_itemname(itemid))
+		equip_item(itemid, slot)
+	end
+end
+
+modifier_maximizer_href = add_automation_script("custom-modifier-maximizer", function()
+	local resultpt = ""
+	if params.equip_itemname and params.equip_slot then
+		if params.equip_itemname == "(none)" then
+			resultpt = unequip_slot(params.equip_slot)()
+		else
+			if params.from_storage and not have_item(params.equip_itemname) and have_storage_access() then
+				pull_storage_item(params.equip_itemname)()
+			end
+			resultpt = equip_item(params.equip_itemname, params.equip_slot)()
+		end
+	elseif params.cast_skillname then
+		resultpt = cast_skill(params.cast_skillname)()
+	elseif params.use_itemname then
+		resultpt = use_item(params.use_itemname)()
+	end
+
+	local scoref, whichbonus = get_modifier_maximizer_score_function(params.whichbonus, params.fuzzy)
+
+	local equipmentlines = {}
+--	kolproxy_log_time_interval("DEBUG equipment", function()
+
+	local slot_suggestion, slot_alternatives, previous_scores = get_modifier_maximizer_equipment_suggestions(scoref)
+
+	local function add_line(slottitle, item, where)
+		item = item or { name = "(none)", score = 0 }
+		local extra = ""
+--		if item then
+--			if item_in_outfit[itemid] then
+--				extra = string.format("[outfit score: %+d]", chosen_outfit_score)
+--			end
+--		end
+		if equipment()[where] == item.itemid then
+			table.insert(equipmentlines, string.format([[<tr style="color: gray"><td>%s</td><td>%s (%+d)</td><td>%s (%+d)</td><td>%s</td></tr>]], slottitle, item.name, item.score, item.name, item.score, extra))
+		elseif item.from_storage then
+			table.insert(equipmentlines, string.format([[<tr><td>%s</td><td style="color: gray">%s (%+d)</td><td><a href="%s" style="color: green">%s</a> (%+d, from storage)</td><td>%s</td></tr>]], slottitle, maybe_get_itemname(equipment()[where]) or "", previous_scores[where], modifier_maximizer_href { pwd = session.pwd, whichbonus = params.whichbonus, equip_itemname = item.name, equip_slot = where, from_storage = 1 }, item.name, item.score, extra))
+		else
+			table.insert(equipmentlines, string.format([[<tr><td>%s</td><td style="color: gray">%s (%+d)</td><td><a href="%s" style="color: green">%s</a> (%+d)</td><td>%s</td></tr>]], slottitle, maybe_get_itemname(equipment()[where]) or "", previous_scores[where], modifier_maximizer_href { pwd = session.pwd, whichbonus = params.whichbonus, equip_itemname = item.name, equip_slot = where }, item.name, item.score, extra))
+		end
 	end
 
 	for _, slot in ipairs { "hat", "container", "shirt", "weapon", "offhand", "pants", "acc1", "acc2", "acc3" } do
-		add(slot, suggested_equipment[slot], slot)
+		add_line(slot, slot_suggestion[slot], slot)
 	end
 
-	end) -- DEBUG log time
+--	end) -- DEBUG log time
+
 	local bufflines = {}
-	kolproxy_log_time_interval("DEBUG skills", function()
+--	kolproxy_log_time_interval("DEBUG skills", function()
 
 	for _, x in ipairs(maximize_skill_bonuses(scoref)) do
 		if x.score > 0 then
@@ -385,8 +429,8 @@ end)
 
 	table.insert(bufflines, "<tr><td>&nbsp;</td></tr>")
 
-	end) -- DEBUG log time
-	kolproxy_log_time_interval("DEBUG items", function()
+--	end) -- DEBUG log time
+--	kolproxy_log_time_interval("DEBUG items", function()
 
 	for _, x in ipairs(maximize_item_bonuses(scoref)) do
 		if x.score > 0 then
@@ -398,7 +442,7 @@ end)
 		end
 	end
 
-	end) -- DEBUG log time
+--	end) -- DEBUG log time
 
 	local script_links = {}
 	for _, f in ipairs(registered_script_links) do
@@ -409,7 +453,7 @@ end)
 	end
 
 	local links = {}
-	for _, x in ipairs(bonuses) do
+	for _, x in ipairs(score_function_bonuses) do
 		table.insert(links, string.format([[<a href="%s">%s</a>]], modifier_maximizer_href { pwd = session.pwd, whichbonus = x }, x))
 	end
 

@@ -71,7 +71,7 @@ local function printwarning(msg, ...)
 end
 
 local function hardwarn(msg, ...)
-	printwarning("WARNING: downloaded data files inconsistent, " .. tostring(msg), ...)
+	--printwarning("WARNING: downloaded data files inconsistent, " .. tostring(msg), ...)
 	error_count_hard = error_count_hard + 1
 end
 
@@ -113,7 +113,7 @@ function verify_data_fits(correct_data, datafile_data)
 	end
 end
 
-function string.contains(a, b) return a:find(b, 1, true) end
+function string.contains(a, b) return not not a:find(b, 1, true) end
 
 local function split_line_on(what, l)
 	local tbl = {}
@@ -234,20 +234,36 @@ local function parse_mafia_bonuslist(bonuslist, debug_source_name)
 	return bonuses
 end
 
+local function mafia_datafile(filename, whichsection)
+	local section = nil
+	local results = {}
+	for l in io.lines(filename) do
+		l = remove_line_junk(l)
+		section = l:match([[^# (.*) section]]) or section
+		local tbl = split_tabbed_line(l)
+		local name = tbl[2]
+		local name2 = l:match([[^# ([^	:]+)]])
+		if section == whichsection or not whichsection then
+			if name and not name2 then
+				results[name] = { section = section, columns = tbl }
+			elseif name2 and not results[name2] then
+				results[name2] = { section = section }
+			end
+		end
+	end
+	return results
+end
+
 function parse_buffs()
 	local buffs = {}
 	buffs["A Little Bit Evil"] = {}
 
-	local section = nil
-	for l in io.lines("cache/files/modifiers.txt") do
-		l = remove_line_junk(l)
-		section = l:match([[^# (.*) section of modifiers.txt]]) or section
-		local name, bonuslist = l:match([[^([^	]+)	(.+)$]])
-		local name2 = l:match([[^# ([^	:]+)]])
-		if section == "Status Effects" and name and bonuslist and not blacklist["buff: " .. name] and not name2 then
+	for name, tbl in pairs(mafia_datafile("cache/files/modifiers.txt", "Status Effects")) do
+		local bonuslist = tbl.columns and tbl.columns[3]
+		if bonuslist then
 			buffs[name] = { bonuses = parse_mafia_bonuslist(bonuslist, name) }
-		elseif section == "Status Effects" and name2 and not blacklist["buff: " .. name2] and not buffs[name2] then
-			buffs[name2] = {}
+		else
+			buffs[name] = {}
 		end
 	end
 
@@ -268,6 +284,7 @@ function parse_buffs()
 			if not processed_datafiles["skills"][castname] then
 				for x, y in pairs(processed_datafiles["skills"]) do
 					if x:lower() == castname:lower() then
+						softwarn("statuseffects:", castname, "should be", x)
 						castname = x
 					end
 				end
@@ -303,29 +320,12 @@ end
 
 function parse_passives()
 	local passives = {}
-
-	local function remove_skillname_junk(skillname)
-		if skillname then
-			local cleaned = skillname:match("^(.+) %(Skill%)")
-			if cleaned then
-				return cleaned
-			end
-		end
-		return skillname
-	end
-
-	local section = nil
-	for l in io.lines("cache/files/modifiers.txt") do
-		l = remove_line_junk(l)
-		section = l:match([[^# (.*) section of modifiers.txt]]) or section
-		local name, bonuslist = l:match([[^([^	]+)	(.+)$]])
-		local name2 = l:match([[^# ([^	:]+)]])
-		name = remove_skillname_junk(name)
-		name2 = remove_skillname_junk(name2)
-		if section == "Passive Skills" and name and bonuslist and not blacklist["buff: " .. name] and not name2 then
+	for name, tbl in pairs(mafia_datafile("cache/files/modifiers.txt", "Passive Skills")) do
+		local bonuslist = tbl.columns and tbl.columns[3]
+		if bonuslist then
 			passives[name] = { bonuses = parse_mafia_bonuslist(bonuslist, name) }
-		elseif section == "Passive Skills" and name2 and not blacklist["buff: " .. name2] and not passives[name2] then
-			passives[name2] = {}
+		else
+			passives[name] = {}
 		end
 	end
 	return passives
@@ -352,10 +352,9 @@ function parse_outfits()
 			outfits[name] = { items = items, bonuses = {} }
 		end
 	end
-	for l in io.lines("cache/files/modifiers.txt") do
-		l = remove_line_junk(l)
-		local name, bonuslist = l:match([[^([^	]+)	(.+)$]])
-		if name and bonuslist and outfits[name] then
+	for name, tbl in pairs(mafia_datafile("cache/files/modifiers.txt")) do
+		local bonuslist = tbl.columns and tbl.columns[3]
+		if outfits[name] and bonuslist then
 			outfits[name].bonuses = parse_mafia_bonuslist(bonuslist, name)
 		end
 	end
@@ -395,7 +394,7 @@ end
 
 function verify_skills(data)
 	local correct_data = {
-		["Summon Sugar Sheets"] = { skillid = 8002, mpcost = 2 },
+		["Summon Sugar Sheets"] = { skillid = 7215, mpcost = 2 },
 		["Leash of Linguini"] = { skillid = 3010, mpcost = 12 },
 		["Patience of the Tortoise"] = { turtle_tamer_shell = false },
 		["Spiky Shell"] = { turtle_tamer_shell = true },
@@ -418,16 +417,16 @@ function parse_items()
 		local itemid, name, descidstr, picturestr, itemusestr, accessstr, autosellstr, plural = tonumber(tbl[1]), tbl[2], tbl[3], tbl[4], tbl[5], tbl[6], tbl[7], tbl[8]
 		local picture = (picturestr or ""):match("^(.-)%.gif$")
 		if itemid and name and not blacklist[name] then
-			items[name] = { id = itemid, picture = picture, sellvalue = tonumber(autosellstr), descid = tonumber(descidstr) }
-			lowercasemap[name:lower()] = name
+			items[itemid] = { id = itemid, name = name, picture = picture, sellvalue = tonumber(autosellstr), descid = tonumber(descidstr) }
+			lowercasemap[name:lower()] = itemid
 			for _, u in ipairs(split_commaseparated(itemusestr or "")) do
 				if itemslots[u] then
-					items[name].equipment_slot = itemslots[u]
+					items[itemid].equipment_slot = itemslots[u]
 				end
 			end
 			for _, a in ipairs(split_commaseparated(accessstr or "")) do
 				if a == "t" then
-					items[name].cantransfer = true
+					items[itemid].cantransfer = true
 				end
 			end
 		end
@@ -437,21 +436,21 @@ function parse_items()
 		local tbl = split_tabbed_line(l)
 		local fakename, size, levelreq, advgainstr = tbl[1], tonumber(tbl[2]), tonumber(tbl[3]), tbl[5]
 		if fakename and size and not blacklist[fakename] then
-			local name = lowercasemap[fakename:lower()]
-			if name then
-				if not items[fakename] then
-					hardwarn("wrong item capitalization", fakename, "should be", name)
-				end
-				items[name][field] = size
-				items[name].levelreq = levelreq
+			local itemid = lowercasemap[fakename:lower()]
+			if itemid then
+				--if not items[fakename] then
+				--	hardwarn("wrong item capitalization", fakename, "should be", name)
+				--end
+				items[itemid][field] = size
+				items[itemid].levelreq = levelreq
 				if advgainstr then
 					local advmin, advmax = advgainstr:match("^([0-9]+)%-([0-9]+)$")
 					if advmin and advmax then
-						items[name].advmin = tonumber(advmin)
-						items[name].advmax = tonumber(advmax)
+						items[itemid].advmin = tonumber(advmin)
+						items[itemid].advmax = tonumber(advmax)
 					else
-						items[name].advmin = tonumber(advgainstr)
-						items[name].advmax = tonumber(advgainstr)
+						items[itemid].advmin = tonumber(advgainstr)
+						items[itemid].advmax = tonumber(advgainstr)
 					end
 				end
 			else
@@ -477,7 +476,8 @@ function parse_items()
 		local tbl = split_tabbed_line(l)
 		local name, power, req, weaptype = tbl[1], tonumber(tbl[2]), tbl[3], tbl[4]
 		if name and req and not blacklist[name] then
-			if items[name] then
+			local itemid = lowercasemap[name:lower()]
+			if items[itemid] then
 				local reqtbl = {}
 				reqtbl.Muscle = tonumber(req:match("Mus: ([0-9]+)"))
 				reqtbl.Mysticality = tonumber(req:match("Mys: ([0-9]+)"))
@@ -486,9 +486,9 @@ function parse_items()
 					hardwarn("unknown equip requirement for", name, req)
 				end
 				if reqtbl.Muscle then
-					items[name].attack_stat = "Muscle"
+					items[itemid].attack_stat = "Muscle"
 				elseif reqtbl.Moxie then
-					items[name].attack_stat = "Moxie"
+					items[itemid].attack_stat = "Moxie"
 				end
 				-- Mafia data files frequently show no equipment requirements as e.g. "Mus: 0" instead of "none"
 				for a, b in pairs(reqtbl) do
@@ -496,12 +496,12 @@ function parse_items()
 						reqtbl[a] = nil
 					end
 				end
-				items[name].equip_requirements = reqtbl
-				items[name].power = power
-				items[name].weapon_hands = tonumber((weaptype or ""):match("^([0-9]+)%-handed"))
-				items[name].weapon_type = weaptype
+				items[itemid].equip_requirements = reqtbl
+				items[itemid].power = power
+				items[itemid].weapon_hands = tonumber((weaptype or ""):match("^([0-9]+)%-handed"))
+				items[itemid].weapon_type = weaptype
 				if weaptype == "shield" then
-					items[name].is_shield = true
+					items[itemid].is_shield = true
 				end
 			else
 				hardwarn("equipment:item does not exist", name)
@@ -509,32 +509,32 @@ function parse_items()
 		end
 	end
 
-	local section = nil
-	local equip_sections = { Hats = true, Containers = true, Shirts = true, Weapons = true, ["Off-hand"] = true, Offhand = true, Offhands = true, Pants = true, Accessories = true, ["Familiar Items"] = true }
-	for l in io.lines("cache/files/modifiers.txt") do
-		l = remove_line_junk(l)
-		section = l:match([[^# (.*) section of modifiers.txt]]) or section
-		local name, bonuslist = l:match([[^([^	]+)	(.+)$]])
-		local name2 = l:match([[^# ([^	:]+)]])
-		if section and equip_sections[section] and name and bonuslist and not blacklist[name] and not name2 and not blacklist["bonuses: " .. name] then
-			if items[name] then
-				items[name].equip_bonuses = parse_mafia_bonuslist(bonuslist, name)
-				items[name].song_duration = tonumber(bonuslist:match("Song Duration: ([0-9]+)"))
+	local equip_sections = { Hats = true, Containers = true, Shirts = true, Weapons = true, ["Off-hand Items"] = true, Offhand = true, Offhands = true, Pants = true, Accessories = true, ["Familiar Items"] = true }
+	for name, tbl in pairs(mafia_datafile("cache/files/modifiers.txt")) do
+		local itemid = lowercasemap[name:lower()]
+		local bonuslist = tbl.columns and tbl.columns[3]
+		if equip_sections[tbl.section] and bonuslist and not blacklist[name] and not blacklist["bonuses: " .. name] then
+			if items[itemid] then
+				items[itemid].equip_bonuses = parse_mafia_bonuslist(bonuslist, name)
+				items[itemid].song_duration = tonumber(bonuslist:match("Song Duration: ([0-9]+)"))
 				if bonuslist:match("Single Equip") then
-					items[name].equip_requirements = items[name].equip_requirements or {}
-					items[name].equip_requirements["You may not equip more than one of these at a time"] = true
+					items[itemid].equip_requirements = items[itemid].equip_requirements or {}
+					items[itemid].equip_requirements["You may not equip more than one of these at a time"] = true
+				end
+				if bonuslist:match("Class:") then
+					items[itemid].class = bonuslist:match([[Class: "(.-)"]])
 				end
 			else
 				hardwarn("modifiers:item does not exist", name)
 			end
-		elseif section == "Everything Else" and name and bonuslist and bonuslist:contains("Effect:") then
+		elseif tbl.section == "Everything Else" and name and bonuslist and bonuslist:contains("Effect:") then
 			local effect = bonuslist:match([[Effect: "(.-)"]])
 			if not effect then
 				hardwarn("modifiers:useitem effect does not exist", name, effect)
 			elseif blacklist["effect: " .. effect] then
-			elseif items[name] then
-				if items[name].fullness == nil and items[name].drunkenness == nil and items[name].spleen == nil then
-					items[name].use_effect = effect
+			elseif items[itemid] then
+				if items[itemid].fullness == nil and items[itemid].drunkenness == nil and items[itemid].spleen == nil then
+					items[itemid].use_effect = effect
 				end
 			elseif not name:match("^# ") then
 				hardwarn("modifiers:useitem does not exist", name, effect)
@@ -546,23 +546,30 @@ function parse_items()
 		l = remove_line_junk(l)
 		local n = l:match("[0-9]*	([^	]+)")
 		local i = l:match("[0-9]*	[^	]+	.*use 1 (.+)") or l:match("[0-9]*	[^	]+	.*use 5 (.+)")
+		local itemid = i and lowercasemap[i:lower()]
 		if n and not processed_datafiles["buffs"][n] then
 			softwarn("statuseffects:buff does not exist", n)
-		elseif n and i and items[i] and items[i].use_effect ~= n then
+		elseif n and itemid and items[itemid] and items[itemid].use_effect ~= n then
 			softwarn("modifiers/statuseffects mismatch", i, n)
-			items[i].use_effect = n
+			items[itemid].use_effect = n
 		end
 	end
 
-	local fixed_items = {}
-
 	for x, y in pairs(items) do
-		fixed_items[x:gsub([["]], [[&quot;]])] = y
+		fixed_name = y.name:gsub([["]], [[&quot;]])
+		if y.name ~= fixed_name then
+			softwarn("statuseffects:item", y.name, "should be", fixed_name)
+		end
+		items[x].name = fixed_name
 	end
 
-	fixed_items["stolen accordion"].song_duration = 5 -- HACK: datafile is broken
+	local sa_id = lowercasemap["stolen accordion"]
+	if items[sa_id].song_duration ~= 5 then
+		softwarn("statuseffects:stolen accordion should have song duration 5")
+		items[sa_id].song_duration = 5 -- HACK: datafile is broken
+	end
 
-	return fixed_items
+	return items
 end
 
 function verify_items(data)
@@ -585,8 +592,29 @@ function verify_items(data)
 		["Shakespeare's Sister's Accordion"] = { equip_bonuses = { ["Smithsness"] = 5 } },
 		["Rock and Roll Legend"] = { equip_bonuses = { ["Moxie"] = 7 } },
 		["Sneaky Pete's basket"] = { attack_stat = "Moxie" },
+		["Staff of Fats"] = { id = 2268 },
+		["Spookyraven library key"] = { id = 7302 },
+		["Galapagosian Cuisses"] = { class = "Turtle Tamer" },
 	}
-	return verify_data_fits(correct_data, data)
+	local known_classes = {
+		["Seal Clubber"] = true,
+		["Turtle Tamer"] = true,
+		["Pastamancer"] = true,
+		["Sauceror"] = true,
+		["Disco Bandit"] = true,
+		["Accordion Thief"] = true,
+	}
+	local return_data = {}
+	for x, y in pairs(data) do
+		if y.class and not known_classes[y.class] then
+		elseif y.id == 7964 then -- Ed's Staff of Fats
+		elseif not return_data[y.name] or y.id > return_data[y.name].id then
+			return_data[y.name] = y
+		end
+	end
+	if verify_data_fits(correct_data, return_data) then
+		return return_data
+	end
 end
 
 local function parse_monster_stats(stats, monster_debug_line)
@@ -638,17 +666,17 @@ local function parse_monster_stats(stats, monster_debug_line)
 				end
 			end
 		end
-		if not name or not value then
-			if stats:sub(i, i) == " " then
-				softwarn("monsters.txt:malformed line", monster_debug_line)
-			else
-				error_count_hard = error_count_hard + 1
-				print("WARNING: failed to parse monster stat", stats:sub(i))
-				print("DEBUG: ", monster_debug_line)
-				return statstbl
-			end
-		else
+		if name and value then
 			statstbl[name] = value
+		elseif stats:sub(i, i) == " " then
+			softwarn("monsters.txt:malformed line", monster_debug_line)
+		elseif stats:contains("DUMMY") then
+			return statstbl
+		else
+			error_count_hard = error_count_hard + 1
+			print("WARNING: failed to parse monster stat", stats:sub(i))
+			print("DEBUG: ", monster_debug_line)
+			return statstbl
 		end
 		i = pos
 	end
@@ -709,11 +737,13 @@ function parse_monsters()
 	for l in io.lines("cache/files/monsters.txt") do
 		l = remove_line_junk(l)
 		local tbl = split_tabbed_line(l)
-		local name, image, stats = tbl[1], tbl[2], tbl[3]
+		local name, id, image, stats = tbl[1], tonumber(tbl[2]), tbl[3], tbl[4]
+		if id == 0 then id = nil end
 		if image == "" then image = nil end
 		__parse_monster_debug = tojson(tbl)
 		if not l:match("^#") and name and stats then
 			--print("DEBUG parsing monster", name)
+			table.remove(tbl, 1)
 			table.remove(tbl, 1)
 			table.remove(tbl, 1)
 			table.remove(tbl, 1)
@@ -763,11 +793,9 @@ end
 
 function parse_hatrack()
 	local hatrack = {}
-
-	for l in io.lines("cache/files/modifiers.txt") do
-		l = remove_line_junk(l)
-		local name, bonuslist = l:match([[^([^	]+)	(.+)$]])
-		if name and bonuslist and not blacklist[name] and processed_datafiles["items"][name] then
+	for name, tbl in pairs(mafia_datafile("cache/files/modifiers.txt")) do
+		local bonuslist = tbl.columns and tbl.columns[3]
+		if bonuslist and processed_datafiles["items"][name] then
 			local desc = bonuslist:match([[Familiar Effect: "(.-)"]])
 			if desc then
 				hatrack[name] = { description = desc, familiar_types = {} }
@@ -777,7 +805,6 @@ function parse_hatrack()
 			end
 		end
 	end
-
 	return hatrack
 end
 
@@ -812,7 +839,8 @@ function parse_recipes()
 		l = remove_line_junk(l)
 		local tbl = split_tabbed_line(l)
 		local itemname, crafttype = tbl[1], tbl[2]
-		if crafttype == "CLIPART" then
+		if l:match("^# ") then
+		elseif crafttype == "CLIPART" then
 			add_recipe(itemname, { type = "cliparts", clips = { tonumber(tbl[3]), tonumber(tbl[4]), tonumber(tbl[5]) } })
 		elseif crafttype == "SMITH" or crafttype == "WSMITH" or crafttype == "ASMITH" then
 			table.remove(tbl, 1)
@@ -868,39 +896,46 @@ function verify_recipes(data)
 end
 
 function parse_familiars()
-	local itemid_lookup = {}
-	for n, d in pairs(processed_datafiles["items"]) do
-		itemid_lookup[d.id] = n
+	local function if_nonempty(x)
+		if x and x ~= "" then
+			return x
+		end
 	end
-
 	local familiars = {}
 	for l in io.lines("cache/files/familiars.txt") do
 		l = remove_line_junk(l)
 		local tbl = split_tabbed_line(l)
-		local famid, name, pic, famtype, larvaitemid, equip = tonumber(tbl[1]), tbl[2], tbl[3], tbl[4], tonumber(tbl[5]), tbl[6]
+		local famid, name, pic, famtype, larvaitem, equip = tonumber(tbl[1]), tbl[2], tbl[3], tbl[4], if_nonempty(tbl[5]), if_nonempty(tbl[6])
 		if pic then
 			pic = pic:gsub("%.gif$", "")
 		end
 		if famid and name then
-			familiars[name] = { famid = famid, familiarpic = pic, familiarequip = equip }
-			if famtype:contains("stat0") then
-				familiars[name].volleyballtype = true
-			end
-			if famtype:contains("item0") then
-				familiars[name].fairytype = true
-			end
-			if famtype:contains("meat0") then
-				familiars[name].leprechauntype = true
-			end
-			if (larvaitemid or 0) > 0 then
-				familiars[name].larvaitem = itemid_lookup[larvaitemid]
-			end
+			familiars[name] = {
+				famid = famid,
+				familiarpic = pic,
+				familiarequip = equip,
+				larvaitem = larvaitem,
+				volleyballtype = famtype:contains("stat0") or nil,
+				fairytype = famtype:contains("item0") or nil,
+				leprechauntype = famtype:contains("meat0") or nil,
+			}
 		end
 	end
 	return familiars
 end
 
 function verify_familiars(data)
+	for x, y in pairs(data) do
+		if y.familiarequip and not processed_datafiles["items"][y.familiarequip] then
+			hardwarn("familiar:familiarequip does not exist", y.familiarequip)
+			data[x].familiarequip = nil
+		end
+		if y.larvaitem and not processed_datafiles["items"][y.larvaitem] then
+			hardwarn("familiar:larvaitem does not exist", y.larvaitem)
+			data[x].larvaitem = nil
+		end
+	end
+
 	local correct_data = {
 		["Frumious Bandersnatch"] = { famid = 105 },
 		["Oily Woim"] = { famid = 168, larvaitem = "woim" },
@@ -913,12 +948,9 @@ end
 -- TODO: merge with parse_familiars
 function parse_enthroned_familiars()
 	local enthroned_familiars = {}
-	local section = nil
-	for l in io.lines("cache/files/modifiers.txt") do
-		l = remove_line_junk(l)
-		section = l:match([[^# (.*) section of modifiers.txt]]) or section
-		local name, bonuslist = l:match([[^Throne:([^	]+)	(.+)$]])
-		if section == "Enthroned familiars" and name and bonuslist then
+	for name, tbl in pairs(mafia_datafile("cache/files/modifiers.txt", "Enthroned familiars")) do
+		local bonuslist = tbl.columns and tbl.columns[3]
+		if name and bonuslist then
 			enthroned_familiars[name] = parse_mafia_bonuslist(bonuslist, name)
 		end
 	end
@@ -1103,7 +1135,7 @@ function parse_zones()
 		local tbl = split_tabbed_line(l)
 		local zoneurl, attributes, name = tbl[2], tbl[3], tbl[4]
 		if zoneurl and name then
-			zones[name] = { 
+			zones[name] = {
 				zoneid = tonumber(zoneurl:match("adventure=([0-9]*)")),
 				stat = tonumber(attributes:match("Stat:%s(%w+)")),
 				terrain = attributes:match("Env:%s(%w+)"),
@@ -1158,6 +1190,51 @@ function verify_zones(data)
 	return verify_data_fits(correct_data, data)
 end
 
+function parse_stores()
+	local stores = {}
+	local function process(whichshop, itemname)
+		if whichshop and itemname then
+			stores[whichshop] = stores[whichshop] or {}
+			stores[whichshop][itemname] = true
+		end
+	end
+	for l in io.lines("cache/files/npcstores.txt") do
+		l = remove_line_junk(l)
+		local tbl = split_tabbed_line(l)
+		local _storename, whichshop, itemname = tbl[1], tbl[2], tbl[3]
+		-- Store names are currently inconsistent in the datafiles
+		process(whichshop, itemname)
+	end
+	for l in io.lines("cache/files/coinmasters.txt") do
+		l = remove_line_junk(l)
+		local tbl = split_tabbed_line(l)
+		local storename, itemname = tbl[1], tbl[4]
+		-- coinmaster.txt doesn't contain whichshop value and is only barely useful
+		if storename == "Everything Under the World" then
+			process("edunder_shopshop", itemname)
+		end
+	end
+	return stores
+end
+
+function verify_stores(data)
+	for a, b in pairs(data) do
+		for x, _ in pairs(b) do
+			if not processed_datafiles["items"][x] then
+				hardwarn("stores:unknown item", x, a)
+				b[x] = nil
+			end
+		end
+	end
+	local correct_data = {
+		["generalstore"] = { ["fortune cookie"] = true, ["Ben-Gal&trade; Balm"] = true },
+		["gnoll"] = { ["empty meat tank"] = true },
+		["edunder_shopshop"] = { ["mummified beef haunch"] = true },
+		["bartender"] = { ["overpriced &quot;imported&quot; beer"] = true },
+	}
+	return verify_data_fits(correct_data, data)
+end
+
 function parse_choice_spoilers()
 	local jsonlines = {}
 	local found_adv_options = false
@@ -1196,48 +1273,61 @@ function verify_choice_spoilers(data)
 	end
 end
 
-function process(datafile_list)
-	for _, datafile in ipairs(datafile_list) do
-		local filename = datafile:gsub(" ", "-")
-		local loadf = _G["parse_"..datafile:gsub(" ", "_")]
-		local verifyf = _G["verify_"..datafile:gsub(" ", "_")]
-		local dataok, data = pcall(loadf)
-		if dataok then
-			local verifyok, verified = pcall(verifyf, data)
-			if verifyok and verified then
-				local json = tojson(verified)
-				local fobj = io.open("cache/data/" .. filename .. ".json", "w")
-				fobj:write(json)
-				fobj:close()
-				processed_datafiles[datafile] = verified
-			else
-				error_count_hard = error_count_hard + 1
-				print("WARNING: verifying " .. tostring(filename) .. " data file failed (" .. tostring(verified) .. ").")
-			end
+function process(filename, loadf, verifyf)
+	local dataok, data = pcall(loadf)
+	if dataok then
+		local verifyok, verified = pcall(verifyf, data)
+		if verifyok and verified then
+			local json = tojson(verified)
+			local fobj = io.open("cache/data/" .. filename .. ".json", "w")
+			fobj:write(json)
+			fobj:close()
+			processed_datafiles[filename] = verified
 		else
-			error_count_critical = error_count_critical + 1
-			print("ERROR: parsing " .. tostring(filename) .. " data file failed (" .. tostring(data) .. ").")
+			error_count_hard = error_count_hard + 1
+			print("WARNING: verifying " .. tostring(filename) .. " data file failed (" .. tostring(verified) .. ").")
 		end
+	else
+		error_count_critical = error_count_critical + 1
+		print("ERROR: parsing " .. tostring(filename) .. " data file failed (" .. tostring(data) .. ").")
 	end
 end
 
-process {
-	"choice spoilers",
-	"skills",
-	"buffs",
-	"passives",
-	"items",
-	"outfits",
-	"hatrack",
-	"recipes",
-	"familiars",
-	"enthroned familiars", -- TODO: merge with familiars
-	"monsters",
-	"faxbot monsters",
-	"semirares",
-	"mallprices",
-	"consumables",
-	"zones",
-}
+local function add_itemstxt_aliases(tbl)
+	local itemids = {}
+	for x, y in pairs(tbl) do
+		itemids[x] = y.name
+	end
+	for id, name in pairs(itemids) do
+		tbl["["..id.."]"] = tbl[id]
+		tbl["["..id.."]"..name] = tbl[id]
+	end
+end
 
-print(string.format("INFO: %d errors, %d warnings displayed, %d notices ignored (expected with current data files: 0 errors, 0 warnings displayed, and fewer than 1000 notices ignored)", error_count_critical, error_count_hard, error_count_soft))
+process("skills", parse_skills, verify_skills)
+process("buffs", parse_buffs, verify_buffs)
+process("items", parse_items, verify_items)
+add_itemstxt_aliases(processed_datafiles["items"] or {})
+process("choice-spoilers", parse_choice_spoilers, verify_choice_spoilers)
+process("passives", parse_passives, verify_passives)
+process("outfits", parse_outfits, verify_outfits)
+process("hatrack", parse_hatrack, verify_hatrack)
+process("recipes", parse_recipes, verify_recipes)
+process("familiars", parse_familiars, verify_familiars)
+process("enthroned-familiars", parse_enthroned_familiars, verify_enthroned_familiars) -- TODO: merge with familiars
+process("monsters", parse_monsters, verify_monsters)
+process("faxbot-monsters", parse_faxbot_monsters, verify_faxbot_monsters)
+process("semirares", parse_semirares, verify_semirares)
+process("mallprices", parse_mallprices, verify_mallprices)
+process("consumables", parse_consumables, verify_consumables)
+process("zones", parse_zones, verify_zones)
+process("stores", parse_stores, verify_stores)
+
+
+local prefix = "INFO"
+if error_count_critical > 0 then
+	prefix = "ERROR"
+elseif error_count_hard >= 20 or error_count_soft >= 500 then
+	prefix = "WARNING"
+end
+print(string.format("%s: %d errors, %d warnings, %d notices (expected: 0 errors, fewer then 20 warnings, and fewer than 500 notices)", prefix, error_count_critical, error_count_hard, error_count_soft))

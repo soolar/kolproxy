@@ -122,13 +122,27 @@ function set_equipment(tbl)
 			return "nil"
 		end
 	end
+	local function dump_debug()
+		local slots = {}
+		for x, _ in pairs(eq) do
+			slots[x] = true
+		end
+		for x, _ in pairs(tbl) do
+			slots[x] = true
+		end
+		for slot, _ in pairs(slots) do
+			print(slot, getnamedesc(eq[slot]), getnamedesc(tbl[slot]))
+		end
+	end
 	for a, b in pairs(eq) do
-		if b ~= get_itemid(tbl[a]) then
+		if not tbl[a] or b ~= get_itemid(tbl[a]) then
+			dump_debug()
 			error("Wearing " .. tostring(a) .. ":" .. tostring(b) .. " after trying to wear " .. getnamedesc(tbl[a]))
 		end
 	end
 	for a, b in pairs(tbl) do
 		if eq[a] ~= get_itemid(b) then
+			dump_debug()
 			error("Wearing " .. tostring(a) .. ":" .. tostring(eq[a]) .. " after trying to wear " .. getnamedesc(b))
 		end
 	end
@@ -137,11 +151,20 @@ end
 function use_item(name, amount, noajax)
 	print_debug("  using", name, amount or "")
 	local ajax = (not noajax) and 1 or nil
-	if amount then
+	local idata = maybe_get_itemdata(name)
+	local is_spleen = idata and (tonumber(idata.spleen) or 0) > 0
+	if is_spleen then
+		return use_spleen_item(name, amount, noajax)
+	elseif amount then
 		return async_get_page("/multiuse.php", { pwd = session.pwd, whichitem = get_itemid(name), ajax = ajax, quantity = amount, action = "useitem" })
 	else
 		return async_get_page("/inv_use.php", { pwd = session.pwd, whichitem = get_itemid(name), ajax = ajax })
 	end
+end
+
+function use_spleen_item(name, amount, noajax)
+	local ajax = (not noajax) and 1 or nil
+	return async_get_page("/inv_spleen.php", { pwd = session.pwd, whichitem = get_itemid(name), ajax = ajax, quantity = amount or 1 })
 end
 
 function use_item_noajax(name, amount)

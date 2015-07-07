@@ -1,4 +1,7 @@
 function get_ascension_automation_settings(want_bonus)
+	local function want_statgain()
+		return level() < 13
+	end
 	local tbl = {
 		should_wear_weapons = not ascensionpath("Way of the Surprising Fist"),
 		ignore_buffs = {},
@@ -109,12 +112,13 @@ function get_ascension_automation_settings(want_bonus)
 				{ name = "Hairpiece On Fire", check = function() return want_bonus.rollover_adventures end },
 				{ name = "silent beret", check = function() return want_bonus.noncombat end },
 				"Crown of Thrones",
-				{ name = "spangly sombrero", check = function() return (mainstat_type("Moxie") and level() < 13) end },
-				{ name = "Boris's Helm (askew)", check = function() return (level() < 13) end },
-				{ name = "Spooky Putty mitre", check = function() return (level() < 13) end },
+				"The Crown of Ed the Undying",
+				{ name = "Boris's Helm (askew)", check = want_statgain },
+				{ name = "Spooky Putty mitre", check = want_statgain },
 				"Boris's Helm",
 				"Brimstone Beret",
 				"astral chapeau",
+				{ name = "spangly sombrero", check = function() return mainstat_type("Moxie") and want_statgain() end },
 				"Hairpiece On Fire",
 				{ name = "miner's helmet", check = function() return want_bonus.extraplusitems end },
 				"double-ice cap",
@@ -122,6 +126,7 @@ function get_ascension_automation_settings(want_bonus)
 				"reinforced beaded headband",
 				{ name = "beer helmet", check = function() return (not want_bonus.extraplusitems) end },
 				"Jarlsberg's hat",
+				"giant yellow hat",
 				"fuzzy busby",
 				"worn tophat",
 				"fuzzy earmuffs",
@@ -133,6 +138,8 @@ function get_ascension_automation_settings(want_bonus)
 				"cornuthaum",
 				"Knob Goblin elite helm",
 				"mariachi hat",
+				"Hollandaise helmet",
+				"ravioli hat",
 				"helmet turtle",
 				"snorkel",
 			},
@@ -145,23 +152,25 @@ function get_ascension_automation_settings(want_bonus)
 				"Misty Robe",
 				"Rain-Doh red wings",
 				"Camp Scout backpack",
+				"Time Bandit Time Towel",
 				"barskin cloak",
 				"giant gym membership card",
 			},
 			shirt = {
+				{ name = "sea salt scrubs", check = function() return want_bonus.easy_combat end },
 				{ name = "Sneaky Pete's leather jacket", check = function() return want_bonus.rollover_adventures end },
 				"fishbone corset",
 				{ name = "flaming pink shirt", check = function() return want_bonus.plusitems end },
 				"Sneaky Pete's leather jacket (collar popped)",
 				"Sneaky Pete's leather jacket",
-				{ name = "cane-mail shirt", check = function() return (level() < 13) end },
+				{ name = "cane-mail shirt", check = want_statgain },
 				"astral shirt",
 				"flaming pink shirt",
 				"famous blue raincoat",
-				{ name = "sugar shirt", check = function() return (level() < 13) end },
-				{ name = "hipposkin poncho", check = function() return (level() < 13) end },
+				{ name = "sugar shirt", check = want_statgain },
+				{ name = "hipposkin poncho", check = want_statgain },
 				"yak anorak",
-				{ name = "goth kid t-shirt", check = function() return (level() < 13) end },
+				{ name = "goth kid t-shirt", check = want_statgain },
 				"Grateful Undead T-shirt",
 				"punk rock jacket",
 				"souvenir ski t-shirt",
@@ -180,7 +189,7 @@ function get_ascension_automation_settings(want_bonus)
 				"astral shorts",
 				"astral trousers",
 				"Vicar's Tutu",
-				{ name = "buoybottoms", check = function() return (level() < 13) end },
+				{ name = "buoybottoms", check = want_statgain },
 				"Greatest American Pants",
 				{ name = "Whoompa Fur Pants", check = function() return want_bonus.elemental_weapon_damage end },
 				{ name = "giant discarded torn-up glove", check = function() return want_bonus.elemental_weapon_damage end },
@@ -199,6 +208,7 @@ function get_ascension_automation_settings(want_bonus)
 				"old sweatpants",
 			},
 			accessories = {
+				{ name = "special sauce glove", check = function() return playerclass("Sauceror") and not have_skill("Spirit of Rigatoni") end },
 				{ name = "fudgecycle", check = function() return want_bonus.rollover_adventures end },
 				{ name = "gold wedding ring", check = function() return want_bonus.rollover_adventures end },
 				{ name = "dead guy's watch", check = function() return want_bonus.rollover_adventures end },
@@ -207,7 +217,7 @@ function get_ascension_automation_settings(want_bonus)
 				{ name = "Space Trip safety headphones", check = function() return want_bonus.noncombat end },
 				{ name = "duonoculars", check = function() return want_bonus.noncombat end },
 				{ name = "ring of conflict", check = function() return want_bonus.noncombat end },
-				{ name = "Juju Mojo Mask", check = function() return (level() < 13 and not want_bonus.extraplusitems) end },
+				{ name = "Juju Mojo Mask", check = function() return want_statgain() and not want_bonus.extraplusitems end },
 				{ name = "plastic vampire fangs", check = function() return (level() < 6 and not want_bonus.extraplusitems) end },
 				{ name = "Jekyllin hide belt", check = function() return want_bonus.plusitems end },
 				{ name = "Mr. Accessory Jr.", check = function() return want_bonus.plusitems end },
@@ -215,24 +225,24 @@ function get_ascension_automation_settings(want_bonus)
 				{ name = "stinky cheese eye", check = function() return want_bonus.plusitems end },
 				{ name = "Baron von Ratsworth's monocle", check = function() return want_bonus.plusitems end },
 				{ name = "Loathing Legion rollerblades", check = function() return want_bonus.plusinitiative end },
-				{ name = "Juju Mojo Mask", check = function() return level() < 13 end },
+				{ name = "Juju Mojo Mask", check = want_statgain },
 				{ name = "Brimstone Brooch", check = function() return not ascensionstatus("Aftercore") end },
 				{ name = "Brimstone Bracelet", check = function() return not ascensionstatus("Aftercore") end },
 				{ name = "plastic vampire fangs", check = function() return (mp() < 60 or level() < 9) end },
-				{ name = "hockey stick of furious angry rage", check = function() return not want_bonus.easy_combat and level() < 13 end },
-				{ name = "Hand in Glove", check = function() return not want_bonus.easy_combat and level() < 13 end },
+				{ name = "hockey stick of furious angry rage", check = function() return not want_bonus.easy_combat and want_statgain() end },
+				{ name = "Hand in Glove", check = function() return not want_bonus.easy_combat and want_statgain() end },
 				"over-the-shoulder Folder Holder",
 				"astral ring",
 				"astral mask",
-				{ name = "astral belt", check = function() return (level() >= 7 or (challenge == "fist" and fist_level > 0) or not ascensionstatus("Hardcore")) and not want_bonus.easy_combat and level() < 13 end }, -- How early should we wear this?
-				{ name = "Loathing Legion necktie", check = function() return level() < 13 end },
-				{ name = "C.A.R.N.I.V.O.R.E. button", check = function() return level() < 13 end },
+				{ name = "astral belt", check = function() return (level() >= 7 or (challenge == "fist" and fist_level > 0) or not ascensionstatus("Hardcore")) and not want_bonus.easy_combat and want_statgain() end }, -- How early should we wear this?
+				{ name = "Loathing Legion necktie", check = want_statgain },
+				{ name = "C.A.R.N.I.V.O.R.E. button", check = want_statgain },
 				{ name = "frosty halo", check = function() return want_bonus.plusitems and not equipment().weapon end },
 				{ name = "furry halo", check = function() return want_bonus.plusitems and not equipment().weapon end },
-				{ name = "shining halo", check = function() return level() < 13 and not equipment().weapon end },
+				{ name = "shining halo", check = function() return want_statgain() and not equipment().weapon end },
 				{ name = "imp unity ring", check = function() return want_bonus.elemental_weapon_damage end },
-				{ name = "badge of authority", check = function() return level() < 13 end },
-				{ name = "ring of aggravate monster", check = function() return level() < 13 end },
+				{ name = "badge of authority", check = want_statgain },
+				{ name = "ring of aggravate monster", check = want_statgain },
 				"Juju Mojo Mask",
 				"plastic vampire fangs",
 				"Jekyllin hide belt",
@@ -292,6 +302,7 @@ function get_ascension_automation_settings(want_bonus)
 			"Shakespeare's Sister's Accordion",
 			"right bear arm",
 			{ name = "Staff of the Headmaster's Victuals", check = function() return not want_bonus.not_casting_spells end },
+			7961, -- "Staff of Ed", pathed version
 			"alarm accordion",
 			"peace accordion",
 			"Squeezebox of the Ages",
@@ -308,16 +319,21 @@ function get_ascension_automation_settings(want_bonus)
 			"Sneaky Pete's basket",
 			"hilarious comedy prop",
 			"ironic battle spoon",
+			"oversized pizza cutter",
 			"rubber band gun",
 			"seal-clubbing club",
 			"turtle totem",
 		}
 		tbl.default_equipment.offhand = {
+			{ name = "Operation Patriot Shield", check = function() return want_bonus.easy_combat end },
+			{ name = "Brimstone Bunker", check = function() return want_bonus.easy_combat end },
+			{ name = "wicker shield", check = function() return want_bonus.easy_combat end },
+			{ name = "black shield", check = function() return want_bonus.easy_combat end },
 			"Bag o' Tricks",
 			{ name = "A Light that Never Goes Out", check = function() return want_bonus.plusitems end },
 			"Jarlsberg's pan",
 			"Jarlsberg's pan (Cosmic portal mode)",
-			{ name = "Operation Patriot Shield", check = function() return level() < 13 end },
+			{ name = "Operation Patriot Shield", check = want_statgain },
 			{ name = "Rain-Doh green lantern", check = function() return want_bonus.easy_combat end },
 			"pool skimmer",
 			{ name = "Rain-Doh green lantern", check = function() return not want_bonus.not_casting_spells end },
@@ -333,22 +349,23 @@ function get_ascension_automation_settings(want_bonus)
 			"black shield",
 			"giant clay ashtray",
 			"hot plate",
+			"heavy-duty clipboard",
 			"magical ice cubes",
 		}
 	end
 	function tbl.canwear_itemname(x)
 		local itemname = nil
-		if type(x) == "string" then
+		if type(x) == "string" or type(x) == "number" then
 			if have_item(x) and can_equip_item(x) then
 				itemname = x
 			end
 		elseif type(x) == "table" then
-			if have_item(x.name) and x.check and x.check() and can_equip_item(x.name) then
-				if want_bonus.easy_combat and datafile("items")[x.name] and ((datafile("items")[x.name].equip_bonuses or {})["Monster Level"] or 0) > 0 then
-				else
-					itemname = x.name
-				end
+			if have_item(x.name) and can_equip_item(x.name) and x.check() then
+				itemname = x.name
 			end
+		end
+		if itemname and want_bonus.easy_combat and estimate_item_equip_bonuses(itemname)["Monster Level"] > 0 then
+			itemname = nil
 		end
 		return itemname
 	end

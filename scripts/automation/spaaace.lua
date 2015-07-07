@@ -1,7 +1,7 @@
 local function adv_space_zone(zoneid)
 	script.ensure_buffs { "Fat Leon's Phat Loot Lyric", "Leash of Linguini", "Empathy" }
 	script.heal_up()
-	script.ensure_mp(100)
+	script.ensure_mp(70)
 	result, resulturl, advagain = autoadventure {
 		zoneid = zoneid,
 		noncombatchoices = {
@@ -211,7 +211,7 @@ local space_href = setup_turnplaying_script {
 				local rewards = { 0, 0, 0, 0, 1, 0, 0, 0, 0 }
 				local best_option = solve_porko(pegs, rewards)
 				result, resulturl = get_page("/choice.php", { whichchoice = 540, pwd = session.pwd, option = best_option })
-				result, resulturl = get_page("/place.php", { whichplace = "spaaacegrimace" })
+				result, resulturl = get_place("spaaacegrimace")
 			end
 			advagain = false
 		end
@@ -267,7 +267,7 @@ end)
 
 add_printer("/place.php", function()
 	if params.whichplace ~= "spaaacegrimace" then return end
-	if not setting_enabled("enable turnplaying automation") or ascensionstatus() ~= "Aftercore" then return end
+	if not setting_enabled("enable turnplaying automation") or not ascensionstatus("Aftercore") then return end
 	if text:contains("Step right up and try your luck at Porko") then
 		text = text:gsub([[(</table></center>)(</body>)]], function(a, b)
 			return a .. [[

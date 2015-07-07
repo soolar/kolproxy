@@ -65,24 +65,24 @@ do
 		end
 		if warntype == "extra" then
 			-- TODO: redo these local tables with warnings, at least give them paths, or preferably reuse normal stuff
-			if path == "/adventure.php" then
-				localtable.insert(__raw_extra_adventure_warnings, f)
-			end
 			for _, p in ipairs(path) do
+				if p == "/adventure.php" then
+					localtable.insert(__raw_extra_adventure_warnings, f)
+				end
 				__raw_add_extra_warning(p, f)
 			end
 		elseif warntype == "warning" then
-			if path == "/adventure.php" then
-				localtable.insert(__raw_adventure_warnings, f)
-			end
 			for _, p in ipairs(path) do
+				if p == "/adventure.php" then
+					localtable.insert(__raw_adventure_warnings, f)
+				end
 				__raw_add_warning(p, f)
 			end
 		elseif warntype == "notice" then
-			if path == "/adventure.php" then
-				localtable.insert(__raw_adventure_notices, f)
-			end
 			for _, p in ipairs(path) do
+				if p == "/adventure.php" then
+					localtable.insert(__raw_adventure_notices, f)
+				end
 				__raw_add_notice(p, f)
 			end
 		else
@@ -90,24 +90,23 @@ do
 		end
 	end
 
-
 	function add_ascension_warning(filename, f)
 		add_warning_internal("warning", filename, function()
-			if ascensionstatus() == "Aftercore" then return end
+			if ascensionstatus("Aftercore") then return end
 			return f()
 		end)
 	end
 
 	function add_extra_ascension_warning(filename, f)
 		add_warning_internal("extra", filename, function()
-			if ascensionstatus() == "Aftercore" then return end
+			if ascensionstatus("Aftercore") then return end
 			return f()
 		end)
 	end
 
 	function add_aftercore_warning(filename, f)
 		add_warning_internal("warning", filename, function()
-			if ascensionstatus() ~= "Aftercore" then return end
+			if not ascensionstatus("Aftercore") then return end
 			return f()
 		end)
 	end
@@ -162,21 +161,21 @@ do
 
 	function add_ascension_adventure_warning(f)
 		add_raw_adventure_warning(function(...)
-			if ascensionstatus() == "Aftercore" then return end
+			if ascensionstatus("Aftercore") then return end
 			return f(...)
 		end)
 	end
 
 	function add_extra_ascension_adventure_warning(f)
 		add_raw_extra_adventure_warning(function(...)
-			if ascensionstatus() == "Aftercore" then return end
+			if ascensionstatus("Aftercore") then return end
 			return f(...)
 		end)
 	end
 
 	function add_aftercore_adventure_warning(f)
 		add_raw_adventure_warning(function(...)
-			if ascensionstatus() ~= "Aftercore" then return end
+			if not ascensionstatus("Aftercore") then return end
 			return f(...)
 		end)
 	end
@@ -205,14 +204,14 @@ do
 
 	function add_ascension_zone_check(zid, f)
 		raw_add_zone_check(zid, function(...)
-			if ascensionstatus() == "Aftercore" then return end
+			if ascensionstatus("Aftercore") then return end
 			return f(...)
 		end)
 	end
 
 	function add_aftercore_zone_check(zid, f)
 		raw_add_zone_check(zid, function(...)
-			if ascensionstatus() ~= "Aftercore" then return end
+			if not ascensionstatus("Aftercore") then return end
 			return f(...)
 		end)
 	end
@@ -223,23 +222,31 @@ do
 
 	function add_warning(tbl)
 		-- TODO: deprecate some of these
-		check_supported_table_values(tbl, {}, { "message", "check", "severity", "zone", "when", "idgenerator", "path" })
+		check_supported_table_values(tbl, {}, { "message", "check", "severity", "zone", "when", "idgenerator", "path", "whichplace" })
 		local warnprefix = "everywhere"
 		local want_zoneids = nil
 		if tbl.zone then
-			want_zoneids = {}
-			if type(tbl.zone) ~= "table" then
+			if type(tbl.zone) == "string" then
 				tbl.zone = { tbl.zone }
 			end
 			warnprefix = table.concat(tbl.zone, ",")
+			want_zoneids = {}
 			for _, z in ipairs(tbl.zone) do
 				want_zoneids[get_zoneid(z)] = true
 			end
 		end
-		-- TODO: default trigger on place.php with params.action
-		local path = tbl.path or "/adventure.php"
+		local path = nil
+		if tbl.whichplace then
+			path = { "/place.php" }
+		elseif tbl.path then
+			path = tbl.path
+		else
+			path = { "/adventure.php", "/mining.php", "/cellar.php", "/place.php" }
+		end
 		local function f()
-			if tbl.when == "ascension" and freedralph() then return end
+			if tbl.when == "ascension" and finished_mainquest() then return end
+			if not tbl.path and requestpath == "/place.php" and not params.action then return end
+			if tbl.whichplace and params.whichplace ~= tbl.whichplace then return end
 			local zoneid = requested_zone_id()
 			if want_zoneids and not want_zoneids[zoneid] then return end
 			local msg = tbl.message
@@ -312,6 +319,11 @@ do
 				end
 				local ret = [[$.ajax({ url: '/kolproxy-automation-script', cache: false, data: { ]]..table.concat(data, ", ")..[[ }, global: false, ]]..extra_params..[[ })]]
 				return ret
+			elseif tbl.ahref_description then
+				local desc = tbl.ahref_description
+				tbl.ahref_description = nil
+				tbl.pwd = session.pwd
+				return string.format([[<a href="%s" style="color: green" onclick="this.style.color = 'gray'">{ %s }</a>]], localmake_href("/kolproxy-automation-script", tbl), desc)
 			else
 				return localmake_href("/kolproxy-automation-script", tbl)
 			end
@@ -370,13 +382,18 @@ function get_resistance_levels()
 	local charpage = get_page("/charsheet.php")
 	local resists = {}
 	for _, x in pairs(get_element_names()) do
-		resists[x] = tonumber(charpage:match([[<td align=right>]]..x..[[ Protection:</td><td><b>[^>()]+%(([0-9]+)%)</b></td>]]))
+		resists[x] = tonumber(charpage:match([[<td align=right>]]..x..[[ Protection:</td><td><b>[^>()]+%(([0-9]+)%)</b></td>]])) or 0
 	end
 	return resists
 end
 
 function get_resistance_level(elem)
-	return get_resistance_levels()[elem] or 0
+	return get_resistance_levels()[elem]
+end
+
+function get_lowest_resistance_level()
+	local resists = get_resistance_levels()
+	return math.min(resists.Cold, resists.Hot, resists.Sleaze, resists.Spooky, resists.Stench)
 end
 
 function get_elemental_weaknesses(element)
@@ -490,27 +507,23 @@ function estimate_max_fullness()
 		mf = 10
 	elseif ascensionpath("Avatar of Sneaky Pete") then
 		mf = 5
+	elseif ascensionpath("Actually Ed the Undying") then
+		mf = 0
 	end
-	if have_skill("Stomach of Steel") then
-		mf = mf + 5
-	end
-	if have_skill("Legendary Appetite") then
-		mf = mf + 5
-	end
-	if have_skill("Insatiable Hunger") then
-		mf = mf + 5
-	end
-	if have_skill("Ravenous Pounce") then
-		mf = mf + 5
-	end
-	if have_skill("Lunch Like a King") then
-		mf = mf + 5
-	end
-	if have_skill("Gluttony") then
-		mf = mf + 2
-	end
-	if have_skill("Pride") then
-		mf = mf - 1
+	local stomach_skills = {
+		["Stomach of Steel"] = 5,
+		["Legendary Appetite"] = 5,
+		["Insatiable Hunger"] = 5,
+		["Ravenous Pounce"] = 5,
+		["Lunch Like a King"] = 5,
+		["Gluttony"] = 2,
+		["Pride"] = -1,
+		["Replacement Stomach"] = 5,
+	}
+	for skill, amount in pairs(stomach_skills) do
+		if have_skill(skill) then
+			mf = mf + amount
+		end
 	end
 	if session["active feast of boris bonus fullness today"] == "yes" then
 		mf = mf + 15
@@ -533,28 +546,44 @@ function estimate_max_safe_drunkenness()
 		dlimit = 10
 	elseif ascensionpath("Avatar of Sneaky Pete") then
 		dlimit = 20
+	elseif ascensionpath("Actually Ed the Undying") then
+		dlimit = 0
 	end
 
-	if have_skill("Liver of Steel") then
-		dlimit = dlimit + 5
-	end
-	if have_skill("Nightcap") then
-		dlimit = dlimit + 5
-	end
-	if have_skill("Hard Drinker") then
-		dlimit = dlimit + 10
-	end
-	if have_skill("Hollow Leg") then
-		dlimit = dlimit + 1
+	local liver_skills = {
+		["Liver of Steel"] = 5,
+		["Nightcap"] = 5,
+		["Hard Drinker"] = 10,
+		["Hollow Leg"] = 1,
+		["Replacement Liver"] = 5,
+	}
+	for skill, amount in pairs(liver_skills) do
+		if have_skill(skill) then
+			dlimit = dlimit + amount
+		end
 	end
 
-	return dlimit - 1
+	return math.max(0, dlimit - 1)
 end
 
 function estimate_max_spleen()
 	local ms = 15
-	if have_skill("Spleen of Steel") then
-		ms = ms + 5
+	if ascensionpath("Actually Ed the Undying") then
+		ms = 5
+	end
+	local spleen_skills = {
+		["Spleen of Steel"] = 5,
+		["Extra Spleen"] = 5,
+		["Another Extra Spleen"] = 5,
+		["Yet Another Extra Spleen"] = 5,
+		["Still Another Extra Spleen"] = 5,
+		["Just One More Extra Spleen"] = 5,
+		["Okay Seriously, This is the Last Spleen"] = 5,
+	}
+	for skill, amount in pairs(spleen_skills) do
+		if have_skill(skill) then
+			ms = ms + amount
+		end
 	end
 	return ms
 end
@@ -604,6 +633,18 @@ function estimate_mallsell_profit(item, amount)
 	end
 end
 
+function can_equip_chefstaves()
+	if have_skill("Spirit of Rigatoni") then
+		return true
+	elseif playerclass("Sauceror") and have_equipped_item("special sauce glove") then
+		return true
+	elseif playerclass("Avatar of Jarlsberg") then
+		return true
+	else
+		return false
+	end
+end
+
 function can_equip_item(item)
 	local itemdata = maybe_get_itemdata(item)
 	if not itemdata then return true end
@@ -627,6 +668,12 @@ function can_equip_item(item)
 		return false
 	end
 	if itemdata.equipment_slot == "shirt" and not have_skill("Torso Awaregness") then
+		return false
+	end
+	if itemdata.equipment_slot == "weapon" and (itemdata.weapon_type or ""):contains("chefstaff") and not can_equip_chefstaves() then
+		return false
+	end
+	if itemdata.class and not playerclass(itemdata.class) then
 		return false
 	end
 	return true
@@ -662,7 +709,9 @@ function sneaky_pete_motorcycle_upgrades()
 end
 
 function have_unlocked_beach()
+	-- TODO: Load page and check instead? When would it invalidate cached result?
 	if ascensionpath("Avatar of Sneaky Pete") and sneaky_pete_motorcycle_upgrades()["Gas Tank"] == "Large Capacity Tank" then return true end
+	if ascensionpath("Actually Ed the Undying") then return true end
 	return have_item("bitchin' meatcar") or have_item("Desert Bus pass") or have_item("pumpkin carriage") or have_item("tin lizzie")
 end
 unlocked_beach = have_unlocked_beach

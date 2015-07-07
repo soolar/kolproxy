@@ -168,7 +168,7 @@ function do_daily_visits()
 	dopage("/clan_viplounge.php", { action = "crimbotree" })
 
 	if setting_enabled("automate daily visits/check jackass plumber") then
-		dopage("/arcade.php", { action = "plumber" })
+		dopage("/place.php", { whichplace = "arcade", action = "arcade_plumber" })
 	end
 
 	dopage("/clan_rumpus.php", { preaction = "buychips", whichbag = 1 })
@@ -188,7 +188,7 @@ function do_daily_visits()
 
 	dopage("/place.php", { whichplace = "desertbeach", action = "db_nukehouse" })
 
-	dopage("/store.php", { whichstore = "h" })
+	dopage("/shop.php", { whichshop = "hippy" })
 
 	dopage("/volcanoisland.php", { pwd = pwd, action = "npc" })
 	dopage("/volcanoisland.php", { pwd = pwd, action = "npc2" })
@@ -200,7 +200,20 @@ function do_daily_visits()
 	dopage("/choice.php", { whichchoice = 585, pwd = pwd, option = 1, action = "treasure" })
 	dopage("/choice.php", { whichchoice = 585, pwd = pwd, option = 1, action = "leave" })
 
-	if setting_enabled("automate daily visits/do lazy aftercore daily tasks") and ascensionstatus("Aftercore") then
+	if setting_enabled("automate daily visits/do lazy aftercore daily tasks") and have_mall_access() then
+		if have_dinseylandfill() then
+			if not have_item("bag of park garbage") and could_have_item_in_storage("bag of park garbage") then
+				pull_storage_item("bag of park garbage")()
+			end
+
+			if have_item("bag of park garbage") then
+				get_place("airport_stench", "airport3_tunnels")
+				async_get_page("/choice.php", { forceoption = 0 })
+				queue_page_result(async_post_page("/choice.php", { pwd = session.pwd, whichchoice = 1067, option = 6 }))
+				async_post_page("/choice.php", { pwd = session.pwd, whichchoice = 1067, option = 7 })
+			end
+		end
+
 		dopage("/campground.php", { preaction = "summonsnowcone", quantity = 3 })
 		dopage("/campground.php", { preaction = "summonstickers", quantity = 3 })
 		dopage("/campground.php", { preaction = "summonsugarsheets", quantity = 3 })

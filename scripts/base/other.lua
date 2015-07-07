@@ -255,7 +255,7 @@ add_printer("/charpane.php", function()
 	local ttr = tonumber(text:match("var turnsthisrun = ([0-9]+);"))
 	if not ttr then return end
 	if text:contains("inf_small.gif") then return end
-	if ascensionstatus() ~= "Aftercore" then return end
+	if not ascensionstatus("Aftercore") then return end
 	local href = "http://kol.obeliks.de" .. raw_make_href("/buffbot/buff", {
 		{ key = "style", value = "kol" },
 -- 		{ key = "style", value = "kolproxy" },
@@ -431,11 +431,12 @@ add_automator("all pages", function()
 			if aa.last_checked ~= level() and not locked() and aa.checkf() then
 				activated = true
 				local new_last_checked = level()
-				function reset_last_checked()
-					new_last_checked = nil
+				local ok, result = pcall(aa.f)
+				if ok and result then
+					aa.last_checked = nil
+				else
+					aa.last_checked = new_last_checked
 				end
-				pcall(aa.f)
-				aa.last_checked = new_last_checked
 			end
 		end
 		if not activated then break end
@@ -448,7 +449,7 @@ end)
 add_ascension_assistance(function() return true end, function()
 	async_get_page("/council.php")
 	if level() == 8 then
-		async_get_page("/place.php", { whichplace = "mclargehuge", action = "trappercabin" })
+		async_get_place("mclargehuge", "trappercabin")
 	end
 end)
 
@@ -457,9 +458,8 @@ local picked_up_free_pulls = false
 add_ascension_assistance(function() return not picked_up_free_pulls end, function()
 	async_post_page("/campground.php", { action = "telescopelow" })
 	async_post_page("/campground.php", { action = "workshed" })
-	-- TODO: Only at level 1?
 	if not have_item("Clan VIP Lounge key") then
-		freepull_item("Clan VIP Lounge key")
+		xx = freepull_item("Clan VIP Lounge key")
 		freepull_item("cursed microwave")
 		freepull_item("cursed pony keg")
 	end
@@ -493,7 +493,7 @@ local function add_use_item_ascension_assistance(itemname)
 		local c = count_item(itemname)
 		use_item(itemname)()
 		if count_item(itemname) < c then
-			reset_last_checked()
+			return true
 		end
 	end)
 end
@@ -503,15 +503,18 @@ add_use_item_ascension_assistance("astral six-pack")
 add_use_item_ascension_assistance("carton of astral energy drinks")
 
 add_use_item_ascension_assistance("telegram from Lady Spookyraven")
+add_use_item_ascension_assistance("Letter for Melvign the Gnome")
+add_use_item_ascension_assistance("letter to Ed the Undying")
 
 add_use_item_ascension_assistance("evil eye")
+add_use_item_ascension_assistance("desert sightseeing pamphlet")
 
 add_ascension_assistance(function() return have_item("Knob Goblin encryption key") and have_item("Cobb's Knob map") and not ascensionpath("Bees Hate You") end, function()
 	use_item("Cobb's Knob map")
 end)
 
 add_ascension_assistance(function() return have_item("Lady Spookyraven's necklace") end, function()
-	get_page("/place.php", { whichplace = "manor1", action = "manor1_ladys" })
+	get_place("manor1", "manor1_ladys")
 end)
 
 function pick_up_continuum_transfunctioner()
@@ -523,10 +526,10 @@ function pick_up_continuum_transfunctioner()
 end
 
 add_ascension_assistance(function() return level() >= 2 and not have_item("continuum transfunctioner") end, function()
-	async_get_page("/place.php", { whichplace = "forestvillage", action = "fv_untinker_quest" })
+	async_get_place("forestvillage", "fv_untinker_quest")
 	async_post_page("/place.php", { whichplace = "forestvillage", action = "fv_untinker_quest", preaction = "screwquest" })
-	async_get_page("/place.php", { whichplace = "knoll_friendly", action = "dk_innabox" })
-	async_get_page("/place.php", { whichplace = "forestvillage", action = "fv_untinker_quest" })
+	async_get_place("knoll_friendly", "dk_innabox")
+	async_get_place("forestvillage", "fv_untinker_quest")
 	pick_up_continuum_transfunctioner()
 end)
 
@@ -543,10 +546,18 @@ add_use_item_ascension_assistance("hermit script")
 
 add_ascension_assistance(function() return have_item("&quot;2 Love Me, Vol. 2&quot;") end, function()
 	use_item("&quot;2 Love Me, Vol. 2&quot;")
-	async_get_page("/place.php", { whichplace = "palindome", action = "pal_mroffice" })
+	async_get_place("palindome", "pal_mroffice")
 end)
 
-local hermit_items_href = add_automation_script("get-hermit-items", function()
+local hermit_permit_href = add_automation_script("get-hermit-permit", function ()
+	if not have_item("hermit permit") then
+		store_buy_item("hermit permit", "m")
+		text, url = get_page("/hermit.php")
+	end
+	return text, url
+end)
+
+local hermit_trinket_href = add_automation_script("get-hermit-trinket", function()
 	local function get_trinket()
 		if not have_item("worthless trinket") and not have_item("worthless gewgaw") and not have_item("worthless knick-knack") then
 			print "  getting worthless item"
@@ -561,16 +572,14 @@ local hermit_items_href = add_automation_script("get-hermit-items", function()
 	end
 	get_trinket()
 	text, url = get_page("/hermit.php")
-	if text:contains("out of Permits") and not have_item("hermit permit") then
-		store_buy_item("hermit permit", "m")
-		text, url = get_page("/hermit.php")
-	end
 	return text, url
 end)
 
 add_printer("/hermit.php", function()
-	if text:contains("don't have anything worthless enough") then
-		text = text:gsub("worthless enough for him to want to trade for it.<P>", [[%0<a href="]] .. hermit_items_href { pwd = session.pwd } .. [[" style="color:green">{ Get trinket and/or permit }</a><p>]])
+	if text:contains("Hermit Permit required") then
+		text = text:gsub("permits and forms.<p>", [[%0<a href="]] .. hermit_permit_href { pwd = session.pwd } .. [[" style="color: green">{ Get permit }</a><p>]])
+	elseif text:contains("don't have anything worthless enough") then
+		text = text:gsub("worthless enough for him to want to trade for it.<P>", [[%0<a href="]] .. hermit_trinket_href { pwd = session.pwd } .. [[" style="color: green">{ Get trinket }</a><p>]])
 	end
 end)
 
@@ -600,7 +609,7 @@ end)
 add_printer("/da.php", function()
 	if not setting_enabled("automate simple tasks") then return end
 	if params.place == "gate1" and text:contains("You can learn 30 more skills") then
-		text = text:gsub("You can learn 30 more skills.", [[%0</p><p><a href="]] .. learn_all_boris_skills_href { pwd = session.pwd } .. [[" style="color:green">{ Learn all Boris skills. }</a>]])
+		text = text:gsub("You can learn 30 more skills.", [[%0</p><p><a href="]] .. learn_all_boris_skills_href { pwd = session.pwd } .. [[" style="color: green">{ Learn all Boris skills. }</a>]])
 	end
 end)
 
@@ -615,7 +624,7 @@ end)
 add_printer("/jarlskills.php", function()
 	if not setting_enabled("automate simple tasks") then return end
 	if text:contains("You have 32 skill points to spend.") then
-		text = text:gsub("You have 32 skill points to spend.", [[%0</p><p><a href="]] .. learn_all_jarlsberg_skills_href { pwd = session.pwd } .. [[" style="color:green">{ Learn all Jarlsberg skills. }</a>]])
+		text = text:gsub("You have 32 skill points to spend.", [[%0</p><p><a href="]] .. learn_all_jarlsberg_skills_href { pwd = session.pwd } .. [[" style="color: green">{ Learn all Jarlsberg skills. }</a>]])
 	end
 end)
 
@@ -731,7 +740,7 @@ add_interceptor("__IGNORE__ use item: Degrassi Knoll shopping list", function()
 						if name == "meat stack" then
 							async_get_page("/inventory.php", { quantity = 1, action = "makestuff", pwd = params.pwd, whichitem = get_itemid(name), ajax = 1 })
 						else
-							async_get_page("/store.php", { phash = params.pwd, buying = 1, whichitem = get_itemid(name), howmany = 1, whichstore = "5", ajax = 1, action = "buyitem" })
+							buy_item(name)
 						end
 					end
 					for x, name in pairs(meatcar.order) do
@@ -817,3 +826,15 @@ add_automator("/manor3.php", function()
 		end)
 	end
 end)
+
+function add_on_the_trail_warning(zone, monster)
+	add_warning {
+		message = "You are on the trail of another monster when you might want to sniff a " .. monster .. ".",
+		type = "warning",
+		zone = zone,
+		check = function()
+			if not have_buff("On the Trail") then return end
+			return retrieve_trailed_monster() ~= monster
+		end,
+	}
+end

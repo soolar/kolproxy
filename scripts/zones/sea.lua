@@ -16,8 +16,8 @@ end)
 -- Outpost
 
 add_processor("item drop: Mer-kin lockkey", function()
-	print("Mer-kin lockkey dropped from", monstername())
-	ascension["zones.sea.outpost lockkey monster"] = monstername()
+	print("Mer-kin lockkey dropped from", get_monstername())
+	ascension["zones.sea.outpost lockkey monster"] = get_monstername()
 end)
 
 add_printer("/seafloor.php", function()
@@ -65,6 +65,7 @@ add_processor("/runskillz.php", function()
 	end
 end)
 
+-- TODO: change to "use item: ..."
 add_processor("/inv_use.php", function()
 	if text:contains("You roll the bone, over and over, and every time it hits the ground, it bounces straight") then
 		local substr = text:match("You roll the bone, over and over, and every time it hits the ground, it bounces straight .+ You get so weirded out") or ""

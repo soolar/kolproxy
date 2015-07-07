@@ -55,16 +55,16 @@ add_printer("/fight.php", function()
 		awesome_monsters["spider gremlin"] = "molybdenum pliers"
 		awesome_monsters["vegetable gremlin"] = "molybdenum screwdriver"
 	elseif fight["gremlin.has tool"] ~= "no" then
-		if adventure_zone == 182 then
+		if adventure_zone("Next to that Barrel with Something Burning in it") then
 			awesome_monsters["batwinged gremlin"] = "molybdenum hammer"
 			drop_uncertainty["batwinged gremlin"] = true
-		elseif adventure_zone == 184 then
+		elseif adventure_zone("Over Where the Old Tires Are") then
 			awesome_monsters["erudite gremlin"] = "molybdenum crescent wrench"
 			drop_uncertainty["erudite gremlin"] = true
-		elseif adventure_zone == 183 then
+		elseif adventure_zone("Near an Abandoned Refrigerator") then
 			awesome_monsters["spider gremlin"] = "molybdenum pliers"
 			drop_uncertainty["spider gremlin"] = true
-		elseif adventure_zone == 185 then
+		elseif adventure_zone("Out by that Rusted-Out Car") then
 			awesome_monsters["vegetable gremlin"] = "molybdenum screwdriver"
 			drop_uncertainty["vegetable gremlin"] = true
 		end
@@ -72,22 +72,28 @@ add_printer("/fight.php", function()
 
 	local color = nil
 	local extra = ""
-	if awesome_monsters[monstername()] then
+	local awesome_item = nil
+	for x, y in pairs(awesome_monsters) do
+		if monstername(x) then
+			awesome_item = y
+		end
+	end
+	if awesome_item then
 		color = "royalblue"
-		if awesome_monsters[monstername()] ~= "" then
-			local numitems = count_item(awesome_monsters[monstername()])
+		if awesome_item ~= "" then
+			local numitems = count_item(awesome_item)
 			if monstername("Blooper") then
 				numitems = count_item("white pixel") + math.min(count_item("red pixel"), count_item("green pixel"), count_item("blue pixel"))
 			end
-			if drop_uncertainty[monstername()] then
-				extra = extra .. [[<br><center style="font-size: 75%%; color: green">?? []] .. awesome_monsters[monstername()] .. ":" .. numitems .. "] ??</center>"
+			if drop_uncertainty[get_monstername()] then
+				extra = extra .. [[<br><center style="font-size: 75%%; color: green">?? []] .. awesome_item .. ":" .. numitems .. "] ??</center>"
 			else
-				extra = extra .. [[<br><center style="font-size: 75%%; color: green">[]] .. awesome_monsters[monstername()] .. ":" .. numitems .. "]</center>"
+				extra = extra .. [[<br><center style="font-size: 75%%; color: green">[]] .. awesome_item .. ":" .. numitems .. "]</center>"
 			end
 		end
--- 	elseif other_item_dropping_monsters[monstername()] then
+-- 	elseif other_item_dropping_monsters[get_monstername()] then
 -- 		local dropdata = {}
--- 		for i table.values(other_item_dropping_monsters[monstername()]) do
+-- 		for i table.values(other_item_dropping_monsters[get_monstername()]) do
 -- 			table.insert(dropdata, i .. ":" .. count_item(i)
 -- 		end
 -- 		extra = extra .. [[<br><center style="font-size: 75%%; color: gray">[]] .. table.concat(dropdata, ", ") .. [[]</center>]]
@@ -100,8 +106,8 @@ add_printer("/fight.php", function()
 		extra = extra .. [[<br><center style="font-size: 75%%; color: green">]] .. #tbl .." / 8 insults</center>"
 	end
 
-	if tower_monster_items[monstername()] then
-		local item_name = tower_monster_items[monstername()]
+	if tower_monster_items[get_monstername()] then
+		local item_name = tower_monster_items[get_monstername()]
 		local item_id = get_itemid(item_name)
 		if have_item(item_name) then
 			-- TODO: use make_href

@@ -34,6 +34,7 @@ add_choice_text("More Locker Than Morlock", { -- choice adventure number: 556
 add_warning {
 	message = "You already have the mining outfit.",
 	type = "warning",
+	when = "ascension",
 	zone = "Itznotyerzitz Mine",
 	check = function()
 		return not ascensionstatus("Aftercore") and have_item("7-Foot Dwarven mattock") and have_item("miner's helmet") and have_item("miner's pants")
@@ -173,7 +174,7 @@ end
 
 add_automator("/mining.php", function()
 	if not session["trapper.ore"] and not session["trapper.visited"] then
-		get_page("/place.php", { whichplace = "mclargehuge", action = "trappercabin" })
+		get_place("mclargehuge", "trappercabin")
 		session["trapper.visited"] = true
 	end
 end)
@@ -287,19 +288,7 @@ end)
 
 -- goatlet
 
--- add_choice_text("Between a Rock and Some Other Rocks", { -- choice adventure number: 162
--- 	["Help the miners clear the rocks away"] = "Unlock the goatlet",
--- 	["Screw these rocks, I'm gonna roll out"] = { leave_noturn = true },
--- })
-
-add_ascension_zone_check(271, function()
-	if have_buff("On the Trail") then
-		local trailed = retrieve_trailed_monster()
-		if trailed ~= "dairy goat" then
-			return "You are trailing '" .. tostring(trailed) .. "' when you might want to sniff a dairy goat."
-		end
-	end
-end)
+add_on_the_trail_warning("The Goatlet", "dairy goat")
 
 -- extreme slope
 
@@ -327,6 +316,18 @@ add_choice_text("Duffel on the Double", {
 	["Open the bag"] = "Get a piece of eXtreme Cold-Weather Gear",
 	["Scram"] = { leave_noturn = true },
 })
+
+-- ninja snowmen
+
+add_warning {
+	message = "You need to have +combat% to encounter ninja snowman assassins.",
+	type = "warning",
+	when = "ascension",
+	zone = "Lair of the Ninja Snowmen",
+	check = function()
+		return estimate_bonus("Monsters will be more attracted to you") <= 0
+	end,
+}
 
 -- orc chasm
 
@@ -389,8 +390,9 @@ add_processor("/choice.php", function()
 	end
 end)
 
-function predict_aboo_peak_banish()
-	local resists = get_resistance_levels()
+function predict_aboo_peak_banish(testhp, resists)
+	local testhp = testhp or hp()
+	local resists = resists or get_resistance_levels()
 	local accumuldmg = { Cold = 0, Spooky = 0 }
 	local accumulbanish = 0
 	local nextbanish = 2
@@ -403,7 +405,7 @@ function predict_aboo_peak_banish()
 		if beatenup then
 			local dmgtext = markup_damagetext(accumuldmg)
 			table.insert(msglines, string.format("Failed: %d (%s + %s)", accumuldmg.Cold + accumuldmg.Spooky, dmgtext.Cold, dmgtext.Spooky))
-		elseif accumuldmg.Cold + accumuldmg.Spooky < hp() then
+		elseif accumuldmg.Cold + accumuldmg.Spooky < testhp then
 			accumulbanish = accumulbanish + nextbanish
 			nextbanish = nextbanish + 2
 			local dmgtext = markup_damagetext(accumuldmg)
@@ -465,7 +467,7 @@ local function get_hauntedness()
 		hauntedness = "No longer haunted."
 	end
 	if not hauntedness then
-		async_get_page("/place.php", { whichplace = "highlands", action = "highlands_dude" })
+		async_get_place("highlands", "highlands_dude")
 		questlog_page = get_page("/questlog.php", { which = 7 })
 		hauntedness = questlog_page:match([[currently [0-9%%]+ haunted]])
 	end
@@ -487,14 +489,14 @@ function get_aboo_peak_hauntedness()
 end
 
 add_automator("/fight.php", function()
-	if aboo_peak_monster[monstername()] and text:contains("<!--WINWINWIN-->") and not freedralph() then
+	if aboo_peak_monster[get_monstername()] and text:contains("<!--WINWINWIN-->") and not finished_mainquest() then
 		local hauntedness = get_hauntedness()
 		text = text:gsub("<!%-%-WINWINWIN%-%->", function(x) return x .. [[<p style="color: green">{ ]] .. (hauntedness or "Unknown hauntedness.") .. [[ }</p>]] end)
 	end
 end)
 
 add_automator("/choice.php", function()
-	if text:contains([[Adventure Again (A-Boo Peak)]]) and not freedralph() then
+	if text:contains([[Adventure Again (A-Boo Peak)]]) and not finished_mainquest() then
 		local hauntedness = get_hauntedness()
 		text = text:gsub("</td></tr></table></center></td></tr><tr><td height=4>", function(y) return [[<p><center style="color: green">{ ]] .. (hauntedness or "Unknown hauntedness.") .. [[ }</center></p>]] .. y end, 1)
 	end
@@ -511,7 +513,7 @@ local function get_pressure()
 	local questlog_page = get_page("/questlog.php", { which = 1 })
 	local pressure = questlog_page:match([[current pressure: [0-9.]+ &mu;B/Hg]]) or questlog_page:match([[The pressure is very low at this point.]]) or questlog_page:match([[You've lit the fire on Oil Peak.]])
 	if not pressure then
-		async_get_page("/place.php", { whichplace = "highlands", action = "highlands_dude" })
+		async_get_place("highlands", "highlands_dude")
 		questlog_page = get_page("/questlog.php", { which = 1 })
 		pressure = questlog_page:match([[current pressure: [0-9.]+ &mu;B/Hg]]) or questlog_page:match([[The pressure is very low at this point.]]) or questlog_page:match([[You've lit the fire on Oil Peak.]])
 	end
@@ -526,8 +528,36 @@ end
 --get_oil_peak_pressure = get_pressure
 
 add_automator("/fight.php", function()
-	if oil_peak_monster[monstername()] and text:contains("<!--WINWINWIN-->") and not freedralph() then
+	if oil_peak_monster[get_monstername()] and text:contains("<!--WINWINWIN-->") and not finished_mainquest() then
 		local pressure = get_pressure()
 		text = text:gsub("<!%-%-WINWINWIN%-%->", function(x) return x .. [[<p style="color: green">{ ]] .. (pressure or "Unknown pressure.") .. [[ }</p>]] end)
 	end
 end)
+
+add_automator("use item: A-Boo clue", function()
+	if not setting_enabled("automate costly tasks") then return end
+	if not have_item("ten-leaf clover") then
+		local accumulbanish, accumuldmg = predict_aboo_peak_banish()
+		if accumulbanish >= 30 then
+			text, url = autoadventure { zoneid = get_zoneid("A-Boo Peak"), specialnoncombatfunction = function(advtitle, choicenum)
+				if advtitle == "The Horror..." then
+					return "", 1
+				end
+			end }
+		end
+	end
+end)
+
+-- chateau
+
+add_warning {
+	message = "Are you sure? You have no free rests left.",
+	whichplace = "chateau",
+	type = "extra",
+	check = function()
+		if not params.action then return end
+		if not params.action:contains("_rest") then return end
+		local pt = get_place("chateau")
+		return not pt:contains("restlabelfree")
+	end,
+}

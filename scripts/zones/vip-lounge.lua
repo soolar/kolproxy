@@ -34,15 +34,16 @@ add_printer("/clan_viplounge.php", function()
 		end
 	end
 	local hot_tub_text = text:match([[title="(A Relaxing Hot Tub.-)"]])
-	if hot_tub_text:contains("no uses left") then
-		table.insert(messages, string.format([[<span style="color: gray">{ %s }</span>]], hot_tub_text))
-	else
-		table.insert(messages, string.format([[<span style="color: green">{ %s }</span>]], hot_tub_text))
+	if hot_tub_text then
+		if hot_tub_text:contains("no uses left") then
+			table.insert(messages, string.format([[<span style="color: gray">{ %s }</span>]], hot_tub_text))
+		else
+			table.insert(messages, string.format([[<span style="color: green">{ %s }</span>]], hot_tub_text))
+		end
 	end
 	text = text:gsub([[<p><Center><A href="clan_hall.php">Back to Clan Hall]], [[<p><center>]] .. table.concat(messages, "<br>") .. [[</center></p>%0]])
 end)
 
--- TODO: combine in single setting?
 add_automator("/clan_viplounge.php", function()
 	if text:contains("April Shower") and session["clan vip shower available"] == nil then
 		local pt = get_page("/clan_viplounge.php", { action = "shower" })
@@ -127,7 +128,7 @@ add_automator("/clan_viplounge.php", function()
 			if have_item("photocopied monster") then
 				local itempt = get_page("/desc_item.php", { whichitem = "835898159" })
 				local copied = itempt:match([[blurry likeness of [a-zA-Z]* (.-) on it.]])
-				text = text:gsub([[You acquire an item: <b>photocopied monster</b>]], [[%0 <span style="color:green">{ ]] .. copied .. [[ }</span>]])
+				text = text:gsub([[You acquire an item: <b>photocopied monster</b>]], [[%0 <span style="color: green">{ ]] .. copied .. [[ }</span>]])
 			end
 		end
 	end
@@ -148,8 +149,8 @@ local faxbot_href = add_automation_script("get-faxbot-monster", function()
 		for _, c in ipairs(faxbot_monsters_datafile.order) do
 			local x = faxbot_monsters_datafile.categories[c][cmd]
 			if x then
-				async_get_page("/submitnewchat.php", { graf = "/msg FaxBot " .. cmd, pwd = params.pwd })
-				return string.format("Getting %s from FaxBot.", describe_faxbot_option(x))
+				async_get_page("/submitnewchat.php", { graf = "/msg faustbot " .. cmd, pwd = params.pwd })
+				return string.format("Getting %s from faustbot.", describe_faxbot_option(x))
 			end
 		end
 		-- TODO: Use darkorange frame? Never actually happens without authenticated but still invalid requests anyway.
@@ -162,7 +163,7 @@ end)
 
 add_printer("/clan_viplounge.php", function()
 	local faxbot_monsters_datafile = datafile("faxbot monsters")
-	text = text:gsub([[<input class=button type=submit value="Receive a Fax"></form>]], function(x)
+	text = text:gsub([[<input class=button type=submit value="Receive a Fax">.-</form>]], function(x)
 		local optgroups = {}
 		for _, c in ipairs(faxbot_monsters_datafile.order) do
 			local optorder = {}
@@ -180,7 +181,7 @@ add_printer("/clan_viplounge.php", function()
 			end
 			table.insert(optgroups, string.format([[<optgroup label="%s">%s</optgroup>]], c, table.concat(opts)))
 		end
-		return x .. [[<hr><form action="]] .. faxbot_href {} .. [[" method="post"><input type=hidden name=pwd value="]]..session.pwd..[["><span style="color: green;">{ Choose monster: }</span> <select name="faxcommand"><option value="">-- nothing --</option>]] .. table.concat(optgroups) .. [[</select> <input class="button" type="submit" value="Get from FaxBot"></form>]]
+		return x .. [[<hr><form action="]] .. faxbot_href {} .. [[" method="post"><input type=hidden name=pwd value="]]..session.pwd..[["><span style="color: green;">{ Choose monster: }</span> <select name="faxcommand"><option value="">-- nothing --</option>]] .. table.concat(optgroups) .. [[</select> <input class="button" type="submit" value="Get fax"></form>]]
 	end)
 end)
 
@@ -267,5 +268,13 @@ add_printer("/clan_viplounge.php", function()
 </style>
 </head>
 ]]):gsub([[<table><tr><form action=clan_viplounge.php method=post>]], [[<table id="hotdogtable"><tr><form action=clan_viplounge.php method=post>]]):gsub([[Hot Dog Leaderboards</a>]], [[%0<br><a href="]]..normal_page_href..[[" style="color: green">{ Hide "eat and restock" links }</a>]])
+	end
+end)
+
+add_automator("/clan_viplounge.php", function()
+	if params.preaction == "speakeasydrink" and params.drink and text:contains("<table><tr><td>Huh?</td></tr></table>") then
+		-- WORKAROUND: Kolproxy is changing this POST request into GET when clicking through warnings.
+		-- WORKAROUND: Reload the page here to get around this bug, since this particular page requires POST parameters.
+		text, url = post_page(path, params)
 	end
 end)

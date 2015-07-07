@@ -128,14 +128,25 @@ function automate_sea_find_castle()
 	}
 end
 
+local function get_exploration_outfit()
+	local towear = {
+		hat = first_wearable { "Mer-kin sneakmask" },
+		container = first_wearable { "old SCUBA tank" },
+		shirt = first_wearable { "sea salt scrubs" },
+	}
+	if not expertly_trained() then
+		towear.hat = "sea cowboy hat"
+		towear.pants = "sea chaps"
+	end
+	if not have_item("old SCUBA tank") then
+		towear.hat = first_wearable { "Mer-kin scholar mask", "Mer-kin gladiator mask", "aerated diving helmet" }
+	end
+	return towear
+end
+
 function automate_sea_find_big_brother()
 	script.bonus_target { "noncombat" }
-	script.wear {
-		hat = first_wearable { not expertly_trained() and "sea cowboy hat" or nil, "Mer-kin sneakmask" },
-		shirt = first_wearable { "sea salt scrubs" },
-		pants = first_wearable { not expertly_trained() and "sea chaps" or nil },
-		acc1 = "makeshift SCUBA gear",
-	}
+	script.wear(get_exploration_outfit())
 	set_result(get_page("/monkeycastle.php"))
 	if get_result():contains("who=2") or not get_result():contains("littlebrother") then
 		set_result(async_get_page("/monkeycastle.php", { who = 1 }))
@@ -159,12 +170,7 @@ end
 
 function automate_sea_find_grandpa()
 	script.bonus_target { "noncombat" }
-	script.wear {
-		hat = first_wearable { not expertly_trained() and "sea cowboy hat" or nil, "Mer-kin sneakmask" },
-		shirt = first_wearable { "sea salt scrubs" },
-		pants = first_wearable { not expertly_trained() and "sea chaps" or nil },
-		acc1 = "makeshift SCUBA gear",
-	}
+	script.wear(get_exploration_outfit())
 	set_result(get_page("/monkeycastle.php"))
 	if get_result():contains("who=3") or not get_result():contains("brothers") then
 		set_result(async_get_page("/monkeycastle.php", { who = 1 }))
@@ -224,12 +230,7 @@ function automate_sea_find_currents()
 
 	if have_item("Mer-kin lockkey") then
 		script.bonus_target { "noncombat" }
-		script.wear {
-			hat = first_wearable { not expertly_trained() and "sea cowboy hat" or nil, "Mer-kin sneakmask" },
-			shirt = first_wearable { "sea salt scrubs" },
-			pants = first_wearable { not expertly_trained() and "sea chaps" or nil },
-			acc1 = "makeshift SCUBA gear",
-		}
+		script.wear(get_exploration_outfit())
 		script.ensure_buffs { "Spirit of Garlic", "Fat Leon's Phat Loot Lyric", "Ghostly Shell", "Astral Shell", "Leash of Linguini", "Empathy", "Smooth Movements", "The Sonata of Sneakiness" }
 		script.heal_up()
 		script.ensure_mp(100)
@@ -246,10 +247,10 @@ function automate_sea_find_currents()
 					elseif m == "Mer-kin burglar" then
 						return "Sneak into the camouflaged tent"
 					end
-				else
+				elseif advtitle and advtitle:contains(" Intent") then
 					local option = (session["zones.sea.outpost camp last choice option"] or 0) + 1
 					session["zones.sea.outpost camp last choice option"] = option
-					print("Choosing option", option, "at", advtitle)
+					print("DEBUG: Exploring outpost, going to option", option, "at", advtitle)
 					return "", option
 				end
 			end
@@ -287,12 +288,7 @@ function automate_sea_tame_seahorse()
 
 	if not expertly_trained() then
 		script.bonus_target { "item" }
-		script.wear {
-			hat = "sea cowboy hat",
-			shirt = first_wearable { "sea salt scrubs" },
-			pants = "sea chaps",
-			acc1 = "makeshift SCUBA gear",
-		}
+		script.wear(get_exploration_outfit())
 		script.ensure_buffs { "Spirit of Garlic", "Fat Leon's Phat Loot Lyric", "Ghostly Shell", "Astral Shell", "Leash of Linguini", "Empathy", "Donho's Bubbly Ballad" }
 		script.heal_up()
 		script.ensure_mp(100)
@@ -359,7 +355,7 @@ local violence_href = setup_turnplaying_script {
 		if not visited_old_man then
 			inform "visiting old man"
 			set_result(async_get_page("/oldman.php"))
-			set_result(async_get_page("/place.php", { whichplace = "sea_oldman", action = "oldman_oldman" }))
+			set_result(async_get_place("sea_oldman", "oldman_oldman"))
 			visited_old_man = true
 			advagain = true
 		elseif not found_castle then

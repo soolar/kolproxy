@@ -57,22 +57,24 @@ function setup_functions()
 		end
 
 		local player_classid_names = {
-			"Seal Clubber",
-			"Turtle Tamer",
-			"Pastamancer",
-			"Sauceror",
-			"Disco Bandit",
-			"Accordion Thief",
-			nil, nil, nil, nil,
-			"Avatar of Boris",
-			"Zombie Master",
-			nil,
-			"Avatar of Jarlsberg",
-			"Avatar of Sneaky Pete",
+			"Seal Clubber", -- 1
+			"Turtle Tamer", -- 2
+			"Pastamancer", -- 3
+			"Sauceror", -- 4
+			"Disco Bandit", -- 5
+			"Accordion Thief", -- 6
+			nil, nil, nil, nil, -- 7, 8, 9, 10
+			"Avatar of Boris", -- 11
+			"Zombie Master", -- 12
+			nil, -- 13
+			"Avatar of Jarlsberg", -- 14
+			"Avatar of Sneaky Pete", -- 15
+			nil, -- 16
+			"Ed", -- 17
 		}
 		function classid() return tonumber(status().class) end
-		function playerclassname()
-			return player_classid_names[classid()] or ("{classid:" .. classid() .. "}")
+		function maybe_playerclassname()
+			return player_classid_names[classid()]
 		end
 		function playerclass(check)
 			for i = 1, 100 do
@@ -87,12 +89,12 @@ function setup_functions()
 
 		-- WARNING: Values can be out of date unless you load charpane.php. This is a KoL/CDM bug.
 
-		local function __get_mainstat()
+		function get_mainstat_type()
 			-- WORKAROUND: Missing from API. Use correct values for known classes, otherwise guess that it's the highest one
 			local cid = classid()
 			if cid == 1 or cid == 2 or cid == 11 or cid == 12 then
 				return "Muscle"
-			elseif cid == 3 or cid == 4 or cid == 14 then
+			elseif cid == 3 or cid == 4 or cid == 14 or cid == 17 then
 				return "Mysticality"
 			elseif cid == 5 or cid == 6 or cid == 15 then
 				return "Moxie"
@@ -107,17 +109,8 @@ function setup_functions()
 			end
 		end
 
-		function get_mainstat()
-			print([[WARNING: code such as get_mainstat() == "Muscle" should be replaced by mainstat_type("Muscle")]])
-			return __get_mainstat()
-		end
-
 		function mainstat_type(which)
-			if which then
-				return __get_mainstat() == which
-			else
-				return __get_mainstat()
-			end
+			return get_mainstat_type() == which
 		end
 
 -- 		function level() return tonumber(status().level) end -- doesn't update when it should and was also just bugged before, KoL/CDM bug
@@ -141,6 +134,7 @@ function setup_functions()
 		function hp() return math.min(tonumber(status().hp), maxhp()) end
 		function mp() return math.min(tonumber(status().mp), maxmp()) end
 		function turnsthisrun() return tonumber(status().turnsthisrun) end
+		function turnsplayed() return tonumber(status().turnsplayed) end
 		function familiarid() return tonumber(status().familiar) end
 		function familiarpicture() return status().familiarpic end
 		function familiar(name)
@@ -192,7 +186,7 @@ function setup_functions()
 				Mysticality = buffedmysticality(),
 				Moxie = buffedmoxie(),
 			}
-			return stats[mainstat_type()]
+			return stats[get_mainstat_type()]
 		end
 		function basemainstat()
 			local stats = {
@@ -200,7 +194,7 @@ function setup_functions()
 				Mysticality = basemysticality(),
 				Moxie = basemoxie(),
 			}
-			return stats[mainstat_type()]
+			return stats[get_mainstat_type()]
 		end
 		function rawmainstat()
 			local stats = {
@@ -208,7 +202,7 @@ function setup_functions()
 				Mysticality = rawmysticality(),
 				Moxie = rawmoxie(),
 			}
-			return stats[mainstat_type()]
+			return stats[get_mainstat_type()]
 		end
 		function lastadventuredata() return status().lastadv end
 		function lastadventurezoneid()
@@ -230,7 +224,14 @@ function setup_functions()
 			end
 			return status().sign
 		end
-		function freedralph() return tonumber(status().freedralph) == 1 end
+		function finished_mainquest()
+			-- TODO: Should be defeated NS, not freed ralph
+			if ascensionpath("Actually Ed the Undying") then
+				return have_item(7965) -- Holy MacGuffin in Ed
+			else
+				return tonumber(status().freedralph) == 1
+			end
+		end
 		function moonsign_area(name)
 			if name then
 				-- TODO: validate
@@ -266,13 +267,14 @@ function setup_functions()
 		function drunkenness() return tonumber(status().drunk) end
 		function spleen() return tonumber(status().spleen) end
 		function ascensionstatus(check)
+			-- TODO: remove or change values
 			if check then
-				if check ~= "Aftercore" and check ~= "Hardcore" and check ~= "Softcore" then
+				if check ~= "Aftercore" and check ~= "Hardcore" and check ~= "Softcore" and check ~= "Casual" then
 					error("Invalid ascensionstatus check: " .. tostring(check))
 				end
 				return check == ascensionstatus()
 			end
-			if tonumber(status().freedralph) == 1 then
+			if finished_mainquest() and not ascensionpath("Actually Ed the Undying") then
 				return "Aftercore"
 			elseif tonumber(status().casual) == 1 then
 				return "Aftercore"
@@ -284,6 +286,8 @@ function setup_functions()
 				return "Aftercore"
 			end
 		end
+		function have_mall_access() return ascensionstatus("Aftercore") end
+		function have_storage_access() return ascensionstatus("Aftercore") end
 		function mcd() return tonumber(status().mcd) end
 		function maxmcd()
 			if moonsign_area("Little Canadia") then
@@ -419,6 +423,7 @@ function setup_functions()
 			local cs = get_page("/charsheet.php")
 			local skills_text = cs:match("<p>Skills:</b>.-(<a onClick.-)</td>")
 			if not skills_text then
+				--print "WARNING: raw_retrieve_skills() with invalid page"
 				return nil
 			end
 			local skills = {}
@@ -430,30 +435,33 @@ function setup_functions()
 
 		function have_cached_data() -- TODO: check anything else that's cached?
 			return get_cached_item("cached_get_player_skills", function()
-				return session["cached player skills"]
+				return session["cached player skills.ascensionpathid"]
 			end)
+		end
+
+		function state_identifier()
+			return current_ascension_number() .. "/" .. ascensionpathid() .. "/" .. ascensionstatus()
 		end
 
 		function get_player_skills()
 			return get_cached_item("cached_get_player_skills", function()
 				local cached_skills = session["cached player skills"]
 				local cached_skills_storedid = session["cached player skills.storedid"]
-				local currentid = ascensionpathid() .. "/" .. ascensionstatus()
-				if not cached_skills or cached_skills_storedid ~= currentid then
-					if kolproxycore_async_submit_page and not cannot_set_state then
-						cached_skills = raw_retrieve_skills()
-						session["cached player skills"] = cached_skills
-						session["cached player skills.storedid"] = currentid
-					else
-						cached_skills = nil
+				if cached_skills_storedid ~= state_identifier() then
+					if kolproxycore_async_submit_page and not cannot_set_state and not locked() then
+						local skills = raw_retrieve_skills()
+						if skills then
+							cached_skills = skills
+							session["cached player skills"] = skills
+							session["cached player skills.storedid"] = state_identifier()
+						end
 					end
 				end
 				return cached_skills
 			end)
 		end
 		function clear_cached_skills()
-			session["cached player skills"] = nil
-			session["cached player skills.ascensionpathid"] = nil
+			session["cached player skills.storedid"] = nil
 		end
 		function have_skill(name)
 			if not name or name == "" then

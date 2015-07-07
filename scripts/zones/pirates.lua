@@ -270,9 +270,9 @@ add_printer("/ocean.php", function()
 		document.getElementById('lat').value = lat;
 	}
 	</script>
-	<a href="javascript:setlocation(56, 14)" style="color:green">{ Gain muscle }</a>
-	<a href="javascript:setlocation(44, 45)" style="color:green">{ Gain mysticality }</a>
-	<a href="javascript:setlocation(22, 62)" style="color:green">{ Gain moxie }</a>]])
+	<a href="javascript:setlocation(56, 14)" style="color: green">{ Gain muscle }</a>
+	<a href="javascript:setlocation(44, 45)" style="color: green">{ Gain mysticality }</a>
+	<a href="javascript:setlocation(22, 62)" style="color: green">{ Gain moxie }</a>]])
 end)
 
 add_always_zone_check(159, function()
@@ -284,7 +284,7 @@ end)
 -- belowdecks
 
 add_ascension_zone_check(160, function()
-	if have_buff("On the Trail") and not have_item("Talisman o' Nam") and count_item("snakehead charrrm") + count_item("gaudy key") < 2 then
+	if have_buff("On the Trail") and not have_item("Talisman o' Namsilat") and count_item("snakehead charrrm") + count_item("gaudy key") < 2 then
 		local trailed = retrieve_trailed_monster()
 		if trailed ~= "gaudy pirate" then
 			return "You are on the trail of '" .. tostring(trailed) .. "' when you might want to sniff a gaudy pirate."

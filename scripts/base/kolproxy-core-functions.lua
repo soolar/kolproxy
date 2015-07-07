@@ -1,3 +1,7 @@
+function show_dev_info()
+	return get_current_kolproxy_version():contains("dev")
+end
+
 function raw_async_submit_page(rqtype, rqpath, rqparams)
 	local f = kolproxycore_async_submit_page(rqtype, rqpath, rqparams)
 	return function()
@@ -110,6 +114,9 @@ function get_page(url, params) return async_get_page(url, params)() end
 
 function post_page(url, params) return async_post_page(url, params)() end
 
+function async_get_place(whichplace, action) return async_get_page("/place.php", { whichplace = whichplace, action = action }) end
+
+function get_place(whichplace, action) return async_get_place(whichplace, action)() end
 
 
 function make_href(url, params)
@@ -200,7 +207,7 @@ function run_file_with_environment(filename, orgenv, prefillenv)
 		if v ~= nil then return v end
 		v = _G[k]
 		if v ~= nil then return v end
-		if true then
+		if debug_undeclared_variables then
 			local strthing = k .. ":" .. filename
 			if not strthing_reported[strthing] then
 				print("DEBUG didn't find variable", k, "for", filename)
@@ -296,12 +303,12 @@ function run_functions(p, pagetext, run)
 	original_page_text = pagetext
 
 	if p == "/fight.php" then
-	        if newly_started_fight then
-			if monstername() then
-				pagetext = run("start fight:" .. monstername(), pagetext)
+		if newly_started_fight then
+			if get_monstername() then
+				pagetext = run("start fight:" .. get_monstername(), pagetext)
 			end
 			pagetext = run("start fight", pagetext)
-	        end
+		end
 
 		pagetext = pagetext:gsub([[(<td[^>]-><img src="http://images.kingdomofloathing.com/itemimages/)([^"]+.gif)(" width=30 height=30 alt="[^"]+" title=")([^"]+)("></td><td[^>]->)(.-)(</td></tr>)]], function(pre, itemimage, mid, title, td, msg, post)
 			item_image = itemimage
@@ -362,9 +369,11 @@ multiuse -> multiuse
   GET multiuse.php whichitem=ITEMID action=useitem ajax=1 quantity=N pwd=PWD -> multiuse.php whichitem=ITEMID action=useitem ajax=1 quantity=N pwd=PWD
 
   POST multiuse.php [action=useitem pwd=PWD quantity=N whichitem=ITEMID] -> multiuse.php
+
+new inv_spleen
 --]]
 
-	if (requestpath == "/inv_use.php") or (p == "/multiuse.php" and params.action == "useitem") then
+	if (requestpath == "/inv_use.php") or (requestpath == "/inv_spleen.php") or (p == "/multiuse.php" and params.action == "useitem") then
 		item_image = nil
 		item_name = maybe_get_itemname(tonumber(params.whichitem))
 		if item_name then
@@ -376,11 +385,18 @@ multiuse -> multiuse
 	end
 
 	if p == "/fight.php" and pagetext:contains(">You win the fight!<!--WINWINWIN--><") then
-		local mn = monstername()
+		local mn = get_monstername()
 		if mn then
 			pagetext = run("won fight: " .. mn, pagetext)
 		end
 		pagetext = run("won fight", pagetext)
+	end
+
+	if p == "/place.php" and params.whichplace then
+		if params.action then
+			pagetext = run("place:" .. params.whichplace .. ":" .. params.action, pagetext)
+		end
+		pagetext = run("place:" .. params.whichplace, pagetext)
 	end
 
 	pagetext = run(p, pagetext)

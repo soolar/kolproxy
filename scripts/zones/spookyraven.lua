@@ -24,112 +24,6 @@ add_choice_text("The Baker's Dilemma", { -- choice adventure number: 114
 	["&quot;Hey, what's that over there?&quot;"] = { text = "Gain 4-5 moxie", getmeatmin = 15, getmeatmax = 20 },
 })
 
--- wine cellar
-
-add_processor("/desc_item.php", function()
-	local glyph = text:match([[title="(Arcane Glyph #[0-9]+)"]])
-	if glyph then
-		local tbl = session["zone.manor.glyphs"] or {}
-		name = text:match("<b>(dusty bottle of [A-Za-z ]+)</b>")
-		print("INFO: " .. (name or "???") .. " -> " .. glyph)
-		tbl[glyph] = name
-		session["zone.manor.glyphs"] = tbl
-	end
-end)
-
-function determine_cellar_wines()
-	if not session["zone.manor.wines needed"] and not session["tried determining wines"] then
-		async_get_page("/desc_item.php", { whichitem = "278847834" })
-		async_get_page("/desc_item.php", { whichitem = "163456429" })
-		async_get_page("/desc_item.php", { whichitem = "147519269" })
-		async_get_page("/desc_item.php", { whichitem = "905945394" })
-		async_get_page("/desc_item.php", { whichitem = "289748376" })
-		async_get_page("/desc_item.php", { whichitem = "625138517" })
-		local goblet = get_page("/manor3.php", { place = "goblet" })
-		session["tried determining wines"] = "yes"
-		return goblet
-	end
-end
-
-add_automator("/manor3.php", function()
-	determine_cellar_wines()
-end)
-
-add_processor("/manor3.php", function()
-	if text:match("Your eyes are drawn to a pattern of odd glyphs") then
-		tbl = session["zone.manor.glyphs"]
-		if not tbl then return end
-		wines_needed = {}
-		for x in text:gmatch([[title="(Arcane Glyph #[0-9]+)"]]) do
-			print("glyph:"..x.." -> "..tostring(tbl[x]))
-			table.insert(wines_needed, tbl[x])
-		end
-		session["zone.manor.wines needed"] = wines_needed
-	end
-end)
-
-add_processor("item drop", function()
-	if adventure_zone then
-		if item_name:match("^dusty bottle of ") then
-			tbl = __convert_table_to_json(ascension["zone.manor.wine cellar zone bottles"] or ascension["zone.manor.wine cellar bottles"] or {})
-			if not tbl[tostring(adventure_zone)] then
-				tbl[tostring(adventure_zone)] = {}
-			end
-			tbl[tostring(adventure_zone)][item_name] = true
-			ascension["zone.manor.wine cellar zone bottles"] = tbl
-		end
-	end
-end)
-
-add_printer("/manor3.php", function()
-	if not session["zone.manor.wines needed"] then return end
-	local tbl = __convert_table_to_json(ascension["zone.manor.wine cellar zone bottles"] or ascension["zone.manor.wine cellar bottles"] or {})
-
-	local wines, valid_permutations = get_wine_cellar_data(tbl)
-
-	local wines_needed_list = session["zone.manor.wines needed"] or {}
-
-	local wines_needed_status = {}
-	if not text:match("Summoning Chamber") then
-		for wine in table.values(wines_needed_list) do
-			if have_item(wine) then
-				wines_needed_status[wine] = "have"
-			else
-				wines_needed_status[wine] = "need"
-			end
-		end
-	end
-
-	function get_zone_wines(z)
-		local wine_names = {}
-		for wine, count in pairs(wines[z]) do
-			table.insert(wine_names, wine)
-		end
-		table.sort(wine_names)
-		local retstr = ""
-		for _, wine in ipairs(wine_names) do
-			if wines[z][wine] == valid_permutations then
-				starttag, winestr, endtag = "<td>", wine:gsub("dusty bottle of ", ""), "</td>"
-			else
-				starttag, winestr, endtag = [[<td style="font-size: 66%%;">]], wine:gsub("dusty bottle of ", "") .. ": " .. string.format("%.1f%%%%", 100 * wines[z][wine] / valid_permutations), "</td>"
-			end
-			if wines_needed_status[wine] == "need" then
-				winestr = [[<span style="color: darkorange">]] .. winestr .. "</span>"
-			elseif wines_needed_status[wine] == "have" then
-				winestr = [[<span style="color: green">]] .. winestr .. "</span>"
-			else
-				winestr = [[<span style="color: gray">]] .. winestr .. "</span>"
-			end
-			retstr = retstr .. "<tr>" .. starttag .. winestr .. endtag .. "</tr>"
-		end
-		return [[<table style="height: 100px; vertical-align: middle;"><tr><td><table style="text-align: center;">]] .. retstr .. [[</table></td></tr></table>]]
-	end
-	text = text:gsub([[(<td width=100 height=100>)(<a href="adventure.php%?snarfblat=178">.-)(</td>)]], [[%1<div style="position: relative;"><div style="position: absolute; right: 100px; width: 100px; height: 100px;">]] .. get_zone_wines(178) .. [[</div>%2</div>%3]])
-	text = text:gsub([[(<td width=100 height=100>)(<a href="adventure.php%?snarfblat=179">.-)(</td>)]], [[%1<div style="position: relative;"><div style="position: absolute; left: 100px; width: 100px; height: 100px;">]] .. get_zone_wines(179) .. [[</div>%2</div>%3]])
-	text = text:gsub([[(<td width=100 height=100>)(<a href="adventure.php%?snarfblat=180">.-)(</td>)]], [[%1<div style="position: relative;"><div style="position: absolute; right: 100px; width: 100px; height: 100px;">]] .. get_zone_wines(180) .. [[</div>%2</div>%3]])
-	text = text:gsub([[(<td width=100 height=100>)(<a href="adventure.php%?snarfblat=181">.-)(</td>)]], [[%1<div style="position: relative;"><div style="position: absolute; left: 100px; width: 100px; height: 100px;">]] .. get_zone_wines(181) .. [[</div>%2</div>%3]])
-end)
-
 -- gallery stuff
 
 add_printer("/place.php", function()
@@ -222,73 +116,50 @@ end)
 
 -- bedroom
 
-add_choice_text("One Nightstand", function()
-	if text:contains("fine mahogany nightstand") then
-		if have_equipped_item("Lord Spookyraven's spectacles") then
-			return {
-				["Check the top drawer"] = "Get coin purse",
-				["Check the bottom drawer"] = "Fight nightstand",
-				["Look under the nightstand"] = "Get spookyraven skill item",
-			}
-		else
-			return {
-				["Check the top drawer"] = "Get coin purse",
-				["Check the bottom drawer"] = "Fight nightstand",
-				["Look under the nightstand"] = { text = "If wearing spectacles, get spookyraven skill item", disabled = true },
-			}
-		end
-	elseif text:contains("ornately carved nightstand") then
-		if have_item("Lord Spookyraven's spectacles") then
-			return {
-				["Open the top drawer"] = "Gain meat",
-				["Open the bottom drawer"] = "Gain mysticality",
-				["Look behind the nightstand"] = { getitem = "Lord Spookyraven's spectacles", disabled = true },
-				["Look under the nightstand"] = { getitem = "disposable instant camera", good_choice = not have_item("disposable instant camera") },
-			}
-		else
-			return {
-				["Open the top drawer"] = "Gain meat",
-				["Open the bottom drawer"] = "Gain mysticality",
-				["Look behind the nightstand"] = { getitem = "Lord Spookyraven's spectacles", good_choice = true },
-				["Look under the nightstand"] = { getitem = "disposable instant camera" },
-			}
-		end
-	elseif text:contains("simple white nightstand") then
-		return {
-			["Look in the top drawer"] = "Get wallet",
-			["Look in the bottom drawer"] = "Gain muscle",
-			["Kick it and see what happens"] = "Fight nightstand",
-		}
-	elseif text:contains("simple wooden nightstand") then
-		if have_item("Spookyraven ballroom key") then
-			return {
-				["Check the top drawer"] = "Gain moxie",
-				["Check the bottom drawer"] = { getitem = "Spookyraven ballroom key", disabled = true },
-				["Investigate the jewelry"] = "Fight mistress",
-			}
-		elseif ascension["zone.manor.unlocked ballroom key"] == "yes" then
-			return {
-				["Check the top drawer"] = "Gain moxie",
-				["Check the bottom drawer"] = { getitem = "Spookyraven ballroom key", good_choice = true },
-				["Investigate the jewelry"] = "Fight mistress",
-			}
-		else
-			return {
-				["Check the top drawer"] = { text = "Gain moxie and unlock ballroom key", good_choice = true },
-				["Check the bottom drawer"] = "When unlocked, get ballroom key",
-				["Investigate the jewelry"] = "Fight mistress",
-			}
-		end
-	end
-end)
+add_choice_text("One Mahogany Nightstand", {
+	["Check the top drawer"] = function() return (not ascension["spookyraven.halfmemo obtained"]) and "Get either 'half of a memo' or 'old coin purse'" or { getitem = "old coin purse" } end,
+	["Check the bottom drawer"] = { text = "Take damage", disabled = true },
+	["Look under the nightstand"] = function() return have_equipped_item("Lord Spookyraven's spectacles") and "Start Spookyraven skill quest" or "Need Lord Spookyraven's spectacles equipped" end,
+	["Use a ghost key"] = { getmeatmin = 900, getmeatmax = 1100 },
+	["Ignore it"] = "Nothing",
+})
 
-add_printer("/manor2.php", function()
-	if not have_item("Spookyraven ballroom key") then
-		brkeytext = [[<span style="color: darkorange">Ballroom key still taped under drawer</span>]]
-		if ascension["zone.manor.unlocked ballroom key"] == "yes" then
-			brkeytext = [[<span style="color: green">Ballroom key available</span>]]
-		end
-		text = text:gsub([[(<td width=100 height=100>)(<A href="adventure.php%?snarfblat=108">.-)(</td>)]], [[%1<div style="position: relative;"><div style="position: absolute; left: -105px; width: 100px; height: 100px;"><table style="height: 100px; vertical-align: middle; text-align: right;"><tr><td>]] .. brkeytext .. [[</td></tr></table></div>%2</div>%3]], 1)
+add_choice_text("One Ornate Nightstand", {
+	["Open the top drawer"] = { getmeatmin = 400, getmeatmax = 600 },
+	["Open the bottom drawer"] = "Gain 50-200 mysticality",
+	["Look behind the nightstand"] = function() return not have_item("Lord Spookyraven's spectacles") and { text = "Get spectacles", good_choice = true } or { text = "Nothing", disabled = true } end,
+	["Look under the nightstand"] = function() return { getitem = "disposable instant camera", good_choice = not have_item("disposable instant camera") } end,
+	["Use a ghost key"] = "Gain 200 mysticality",
+	["Ignore it"] = "Nothing",
+})
+
+add_choice_text("One Rustic Nightstand", {
+	["Check the top drawer"] = "Gain 50-200 moxie",
+	["Check the bottom drawer"] = "Get grouchy restless spirit or nothing",
+	["Investigate the jewelry"] = "Fight remains of a jilted mistress",
+	["Use a ghost key"] = "Gain 200 moxie",
+	["Ignore it"] = "Nothing",
+})
+
+add_choice_text("One Elegant Nightstand", {
+	["Open the single drawer"] = function() return (ascension["spookyraven.bedroom.gown obtained"]) and "Nothing" or { text = "Get quest item", good_choice = true } end,
+	["Break a leg (off of the nightstand)"] = { getitem = "elegant nightstick" },
+	["Use a ghost key"] = "Gain 100 all stats",
+	["Ignore it"] = "Nothing",
+})
+
+add_choice_text("One Simple Nightstand", {
+	["Check the top drawer"] = { getitem = "old leather wallet" },
+	["Check the bottom drawer"] = "Gain 50-200 muscle",
+	["Use a ghost key"] = "Gain 200 muscle",
+	["Ignore it"] = "Nothing",
+})
+
+add_processor("/choice.php", function()
+	if text:contains("You open the elegant drawer of the elegant nightstand") or text:contains("ephemeral elegance residue") then
+		ascension["spookyraven.bedroom.gown obtained"] = true
+	elseif (text:contains("You open the drawer and find a scrap of paper") or have_item("half of a memo")) then
+		ascension["spookyraven.halfmemo obtained"] = true
 	end
 end)
 
@@ -632,125 +503,6 @@ span .fullmap { position: absolute; display: none; }
 		text = text:gsub([[<img src="http://images.kingdomofloathing.com/adventureimages/gp[^.]*.gif" width=100 height=100>]], [[<div class="kolproxy_louvremapimage"><span>%0<img src="http://i224.photobucket.com/albums/dd259/abeaS_oyR/kollouvre.jpg" class="fullmap" width="300" height="300"><br><a href="http://kol.coldfront.net/thekolwiki/index.php/Louvre_Map" target="_blank" style="color: green">{ Show map }</a></span></div>]])
 	end
 end)
-
-local function get_wine_cellar_permutations_and_quadrants(tbl)
-	local quadrants = {
-		{ ["dusty bottle of Marsala"] = true, ["dusty bottle of Merlot"] = true, ["dusty bottle of Muscat"] = true }, -- 1
-		{ ["dusty bottle of Marsala"] = true, ["dusty bottle of Pinot Noir"] = true, ["dusty bottle of Zinfandel"] = true }, -- 2
-		{ ["dusty bottle of Merlot"] = true, ["dusty bottle of Pinot Noir"] = true, ["dusty bottle of Port"] = true }, -- 3
-		{ ["dusty bottle of Muscat"] = true, ["dusty bottle of Port"] = true, ["dusty bottle of Zinfandel"] = true }, -- 4
-	}
-
-	local permutations = {
-		{ [178] = 1, [179] = 2, [180] = 3, [181] = 4 }, -- 1
-		{ [178] = 1, [179] = 2, [180] = 4, [181] = 3 }, -- 2
-		{ [178] = 1, [179] = 3, [180] = 2, [181] = 4 }, -- 3
-		{ [178] = 1, [179] = 3, [180] = 4, [181] = 2 }, -- 4
-		{ [178] = 1, [179] = 4, [180] = 2, [181] = 3 }, -- 5
-		{ [178] = 1, [179] = 4, [180] = 3, [181] = 2 }, -- 6
-		{ [178] = 2, [179] = 1, [180] = 3, [181] = 4 }, -- 7
-		{ [178] = 2, [179] = 1, [180] = 4, [181] = 3 }, -- 8
-		{ [178] = 2, [179] = 3, [180] = 1, [181] = 4 }, -- 9
-		{ [178] = 2, [179] = 3, [180] = 4, [181] = 1 }, -- 10
-		{ [178] = 2, [179] = 4, [180] = 1, [181] = 3 }, -- 11
-		{ [178] = 2, [179] = 4, [180] = 3, [181] = 1 }, -- 12
-		{ [178] = 3, [179] = 1, [180] = 2, [181] = 4 }, -- 13
-		{ [178] = 3, [179] = 1, [180] = 4, [181] = 2 }, -- 14
-		{ [178] = 3, [179] = 2, [180] = 1, [181] = 4 }, -- 15
-		{ [178] = 3, [179] = 2, [180] = 4, [181] = 1 }, -- 16
-		{ [178] = 3, [179] = 4, [180] = 1, [181] = 2 }, -- 17
-		{ [178] = 3, [179] = 4, [180] = 2, [181] = 1 }, -- 18
-		{ [178] = 4, [179] = 1, [180] = 2, [181] = 3 }, -- 19
-		{ [178] = 4, [179] = 1, [180] = 3, [181] = 2 }, -- 20
-		{ [178] = 4, [179] = 2, [180] = 1, [181] = 3 }, -- 21
-		{ [178] = 4, [179] = 2, [180] = 3, [181] = 1 }, -- 22
-		{ [178] = 4, [179] = 3, [180] = 1, [181] = 2 }, -- 23
-		{ [178] = 4, [179] = 3, [180] = 2, [181] = 1 }, -- 24
-	}
-
-	-- Remove invalid permutations, rest are equally likely
-	for z, ztbl in pairs(tbl) do
-		for name, _ in pairs(ztbl) do
-			for i = 1, 24 do
-				if permutations[i] then
-					local qid = permutations[i][tonumber(z)]
-					if not quadrants[qid][name] then
-						permutations[i] = nil
-					end
-				end
-			end
-		end
-	end
-	return permutations, quadrants
-end
-
-function get_wine_cellar_data(known_tbl)
-	local permutations, quadrants = get_wine_cellar_permutations_and_quadrants(__convert_table_to_json(known_tbl))
-
-	local wines = {}
-	local valid_permutations = 0
-
-	for ptbl in table.values(permutations) do
-		for z, qid in pairs(ptbl) do
-			for name, _ in pairs(quadrants[qid]) do
-				if not wines[z] then wines[z] = {} end
-				wines[z][name] = (wines[z][name] or 0) + 1
-			end
-		end
-		valid_permutations = valid_permutations + 1
-	end
-	return wines, valid_permutations
-end
-
-local wines_href = add_automation_script("automate-pour-manor-wines", function()
-	local wines_needed_list = session["zone.manor.wines needed"] or {}
-	local got = 0
-	for _, wine in pairs(wines_needed_list) do
-		if have_item(wine) then
-			got = got + 1
-		end
-	end
-
-	if got == 3 then
-		for _, wine in ipairs(wines_needed_list) do
-			text, url = post_page("/manor3.php", { action = "pourwine", whichwine = get_itemid(wine) })
-		end
-	end
-	return text, url
-end)
-
-add_printer("/manor3.php", function()
-	if text:match("How curious.") then
-		tbl = session["zone.manor.wines needed"]
-		if not tbl then return end
-		prints = {}
-		table.insert(prints, "<ol>")
-		for _, x in ipairs(tbl) do
-			table.insert(prints, "<li>" .. x .. "</li>")
-		end
-		table.insert(prints, "</ol>")
-
-		local count = 0
-		local got = 0
-		for _, wine in pairs(session["zone.manor.wines needed"] or {}) do
-			count = count + 1
-			if have_item(wine) then
-				got = got + 1
-			end
-		end
-
-		if count == 3 then
-			if got == 3 then
-				table.insert(prints, [[<a href="]]..wines_href { pwd = session.pwd }..[[" style="color:green;">{ Pour all 3 }</a>]])
-			else
-				table.insert(prints, [[<span style="color:gray;">{ Pour all 3 }</span>]])
-			end
-		end
-
-		text = text:gsub("How curious.", function(x) return x .. "<br>" .. table.concat(prints) end)
-	end
-end)
-
 
 add_processor("/choice.php", function()
 	if text:contains("As you open the top drawer, you hear a clinking sound from deeper inside the nightstand.") or text:contains("In the top drawer of the nightstand, you find a paperback of the") then
